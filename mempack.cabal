@@ -84,6 +84,7 @@ test-suite tests
   other-modules:      Test.Common
                     , Test.MemPackSpec
   build-depends:      base
+                    , bytestring
                     , mempack
                     , hspec
                     , QuickCheck

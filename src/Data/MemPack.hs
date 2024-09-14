@@ -64,8 +64,9 @@ instance MemPack Int where
     I# i# <- packIncrement a
     lift_# (writeWord8ArrayAsInt# mba# i# a#)
   {-# INLINE unsafePackInto #-}
-  unpackBuffer b =
-    unpackIncrement# $ \i# ->
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_HSINT
+    pure $!
       buffer
         b
         (\ba# -> I# (indexWord8ArrayAsInt# ba# i#))
@@ -79,8 +80,9 @@ instance MemPack Word where
     I# i# <- packIncrement a
     lift_# (writeWord8ArrayAsWord# mba# i# a#)
   {-# INLINE unsafePackInto #-}
-  unpackBuffer b =
-    unpackIncrement# $ \i# ->
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_HSWORD
+    pure $!
       buffer
         b
         (\ba# -> W# (indexWord8ArrayAsWord# ba# i#))
@@ -125,12 +127,20 @@ packIncrement a =
      in (i, n)
 {-# INLINE packIncrement #-}
 
-unpackIncrement# :: MemPack a => (Int# -> a) -> Unpack a
-unpackIncrement# f = do
-  state $ \i@(I# i#) ->
-    let !x = f i#
-     in (x, i + packedByteCount x)
-{-# INLINE unpackIncrement# #-}
+guardAdvanceUnpack :: Buffer b => b -> Int -> Unpack Int
+guardAdvanceUnpack buf n@(I# n#) = do
+  let len = bufferByteCount buf
+      failOutOfBytes i =
+        fail $
+          "Ran out of bytes. Read " <> showBytes i <> " out of " <> showBytes len
+            ++ ". Requested to read " <> showBytes n <> " more."
+  join $ state $ \i@(I# i#) ->
+    case addIntC# i# n# of
+      (# adv#, 0# #) ->
+        if len < I# adv#
+          then (failOutOfBytes i, i)
+          else (pure i, I# adv#)
+      _ -> (failOutOfBytes i, i)
 
 pack :: forall a. (MemPack a, HasCallStack) => a -> ByteArray
 pack = packByteArray False
@@ -172,7 +182,7 @@ packMutableByteArray isPinned a = do
 
 unpackLeftOver :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError (a, Int)
 unpackLeftOver b = do
-  let len = bufferByteSize b
+  let len = bufferByteCount b
   res@(_, consumedBytes) <- runStateT (runUnpack (unpackBuffer b)) 0
   when (consumedBytes > len) $
     -- This is a critical error, therefore we are not gracefully failing this unpacking
@@ -181,12 +191,13 @@ unpackLeftOver b = do
         ++ ". Consumed " <> showBytes (consumedBytes - len) <> " more than allowed from a buffer of length "
         ++ show len
   pure res
+
 unpack :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Either SomeError a
 unpack = first fromMultipleErrors . runFailAgg . unpackFail
 
 unpackFail :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError a
 unpackFail b = do
-  let len = bufferByteSize b
+  let len = bufferByteCount b
   (a, consumedBytes) <- unpackLeftOver b
   when (consumedBytes /= len) $
     fail $
@@ -201,3 +212,5 @@ unpackError = errorFail . unpackFail
 showBytes :: Int -> String
 showBytes 1 = "1 byte"
 showBytes n = show n ++ " bytes"
+
+newtype VarLen a = VarLen a

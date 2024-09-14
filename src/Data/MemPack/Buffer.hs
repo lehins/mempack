@@ -22,27 +22,27 @@ import GHC.ForeignPtr
 
 -- | Immutable memory buffer
 class Buffer b where
-  bufferByteSize :: b -> Int
+  bufferByteCount :: b -> Int
 
   buffer :: b -> (ByteArray# -> a) -> (Addr# -> a) -> a
 
 instance Buffer ByteArray where
-  bufferByteSize (ByteArray ba#) = I# (sizeofByteArray# ba#)
-  {-# INLINE bufferByteSize #-}
+  bufferByteCount (ByteArray ba#) = I# (sizeofByteArray# ba#)
+  {-# INLINE bufferByteCount #-}
 
   buffer (ByteArray ba#) f _ = f ba#
   {-# INLINE buffer #-}
 
 instance Buffer SBS.ShortByteString where
-  bufferByteSize = SBS.length
-  {-# INLINE bufferByteSize #-}
+  bufferByteCount = SBS.length
+  {-# INLINE bufferByteCount #-}
 
   buffer (SBS.SBS ba#) f _ = f ba#
   {-# INLINE buffer #-}
 
 instance Buffer BS.ByteString where
-  bufferByteSize = BS.length
-  {-# INLINE bufferByteSize #-}
+  bufferByteCount = BS.length
+  {-# INLINE bufferByteCount #-}
 
   buffer bs _ f =
     BS.accursedUnutterablePerformIO $ withPtrByteString bs $ \(Ptr addr#) -> pure (f addr#)
