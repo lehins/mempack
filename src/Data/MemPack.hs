@@ -19,6 +19,7 @@ module Data.MemPack where
 
 #include "MachDeps.h"
 
+import GHC.Word
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.State.Strict
@@ -50,9 +51,9 @@ failUnpack :: Error e => e -> Unpack a
 failUnpack = Unpack . lift . failT . toSomeError
 
 class MemPack a where
-  showType :: String
-  default showType :: Typeable a => String
-  showType = show (typeRep (Proxy @a))
+  typeName :: String
+  default typeName :: Typeable a => String
+  typeName = show (typeRep (Proxy @a))
 
   packedByteCount :: a -> Int
 
@@ -92,8 +93,24 @@ instance MemPack Word where
         (\addr# -> W# (indexWordOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackBuffer #-}
 
+instance MemPack Word8 where
+  packedByteCount _ = SIZEOF_WORD8
+  {-# INLINE packedByteCount #-}
+  unsafePackInto (MutableByteArray mba#) a@(W8# a#) = do
+    I# i# <- packIncrement a
+    lift_# (writeWord8Array# mba# i# a#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_WORD8
+    pure $!
+      buffer
+        b
+        (\ba# -> W8# (indexWord8Array# ba# i#))
+        (\addr# -> W8# (indexWord8OffAddr# addr# i#))
+  {-# INLINE unpackBuffer #-}
+
 instance (MemPack a, MemPack b) => MemPack (a, b) where
-  showType = "(" ++ showType @a ++ "," ++ showType @b ++ ")"
+  typeName = "(" ++ typeName @a ++ "," ++ typeName @b ++ ")"
   packedByteCount (a, b) = packedByteCount a + packedByteCount b
   {-# INLINE packedByteCount #-}
   unsafePackInto mba (a, b) = do
@@ -107,7 +124,7 @@ instance (MemPack a, MemPack b) => MemPack (a, b) where
   {-# INLINE unpackBuffer #-}
 
 instance MemPack a => MemPack [a] where
-  showType = "[" ++ showType @a ++ "]"
+  typeName = "[" ++ typeName @a ++ "]"
   packedByteCount es = packedByteCount (length es) + getSum (foldMap (Sum . packedByteCount) es)
   {-# INLINE packedByteCount #-}
   unsafePackInto mba as = do
@@ -183,12 +200,12 @@ packMutableByteArray isPinned a = do
       then
         error $
           "Some bug in 'unsafePackInto' was detected. Buffer of length " <> showBytes len
-            ++ " was not fully filled while packing " <> showType @a
+            ++ " was not fully filled while packing " <> typeName @a
             ++ ". Unfilled " <> showBytes (len - filledBytes) <> "."
       else
         -- This is a critical error, therefore we are not gracefully failing this unpacking
         error $
-          "Potential buffer overflow. Some bug in 'unsafePackInto' was detected while packing " <> showType @a
+          "Potential buffer overflow. Some bug in 'unsafePackInto' was detected while packing " <> typeName @a
             ++ ". Filled " <> showBytes (filledBytes - len) <> " more than allowed into a buffer of length "
             ++ show len
   pure mba
@@ -201,7 +218,7 @@ unpackLeftOver b = do
   when (consumedBytes > len) $
     -- This is a critical error, therefore we are not gracefully failing this unpacking
     error $
-      "Potential buffer overflow. Some bug in 'unpackBuffer' was detected while unpacking " <> showType @a
+      "Potential buffer overflow. Some bug in 'unpackBuffer' was detected while unpacking " <> typeName @a
         ++ ". Consumed " <> showBytes (consumedBytes - len) <> " more than allowed from a buffer of length "
         ++ show len
   pure res
@@ -219,9 +236,9 @@ unpackFail b = do
     failT $
       toSomeError $
         NotFullyConsumedError
-          { notFullyConsumedRead = len
-          , notFullyConsumedAvailable = consumedBytes
-          , notFullyConsumedTypeName = showType @a
+          { notFullyConsumedRead = consumedBytes
+          , notFullyConsumedAvailable = len
+          , notFullyConsumedTypeName = typeName @a
           }
   pure a
 {-# INLINEABLE unpackFail #-}

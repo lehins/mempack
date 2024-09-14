@@ -11,7 +11,9 @@ import Data.Array.Byte (ByteArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString)
 import Data.MemPack
+import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Word
 import System.Random
 import Test.Common
 
@@ -34,28 +36,49 @@ expectRoundTrip a = do
   unpackError (pack a) `shouldBe` a
   unpackError (packByteString a) `shouldBe` a
 
+expectNotFullyConsumed ::
+  forall a. (MemPack a, Show a) => a -> NonEmptyList Word8 -> Expectation
+expectNotFullyConsumed a (NonEmpty xs) = do
+  let extraByteCount = length xs
+      failOnExtra :: (Buffer b, Semigroup b) => b -> b -> Expectation
+      failOnExtra buf extra =
+        case unpack (buf <> extra) :: Either SomeError a of
+          Left e
+            | Just err <- fromSomeError e -> do
+                notFullyConsumedRead err `shouldBe` bufferByteCount buf
+                notFullyConsumedAvailable err `shouldBe` bufferByteCount buf
+                  + packedByteCount extraByteCount -- account for list length
+                  + extraByteCount
+                notFullyConsumedTypeName err `shouldBe` typeName @a
+            | otherwise -> expectationFailure $ "Unexpected failure: " ++ show e
+          Right res -> expectationFailure $ "Unexpectedly unpacked: " ++ show res
+  failOnExtra (pack a) (pack xs)
+  failOnExtra (packByteString a) (packByteString xs)
+
 memPackSpec :: forall a. (MemPack a, Arbitrary a, Eq a, Show a) => Spec
 memPackSpec =
-  describe (showType @a) $ do
+  describe (typeName @a) $ do
     prop "RoundTrip" $ expectRoundTrip @a
     describe "Fail on empty" $ do
       let failOnEmpty emptyBuffer =
             case unpack emptyBuffer :: Either SomeError a of
               Left e
-                | Just roob <- fromSomeError e -> do
-                    ranOutOfBytesRead roob `shouldBe` 0
-                    ranOutOfBytesAvailable roob `shouldBe` 0
-                    ranOutOfBytesRequested roob `shouldSatisfy` (> 0)
+                | Just err <- fromSomeError e -> do
+                    ranOutOfBytesRead err `shouldBe` 0
+                    ranOutOfBytesAvailable err `shouldBe` 0
+                    ranOutOfBytesRequested err `shouldSatisfy` (> 0)
                 | otherwise -> expectationFailure $ "Unexpected failure: " ++ show e
               Right res -> expectationFailure $ "Unexpectedly unpacked: " ++ show res
       it "ByteArray" $ failOnEmpty (mempty :: ByteArray)
       it "ByteString" $ failOnEmpty (mempty :: ByteString)
       it "ShortByteString" $ failOnEmpty (mempty :: ShortByteString)
+    prop "Fail on too much" $ expectNotFullyConsumed @a
 
 spec :: Spec
 spec = do
   memPackSpec @(E Int)
   memPackSpec @(E Word)
+  memPackSpec @(E Word8)
   memPackSpec @[E Int]
   memPackSpec @[E Word]
   memPackSpec @(E Int, E Word)
