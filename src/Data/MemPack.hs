@@ -46,6 +46,9 @@ newtype Unpack a = Unpack
   }
   deriving (Functor, Applicative, Monad, MonadFail, MonadState Int)
 
+failUnpack :: Error e => e -> Unpack a
+failUnpack = Unpack . lift . failT . toSomeError
+
 class MemPack a where
   showType :: String
   default showType :: Typeable a => String
@@ -131,9 +134,14 @@ guardAdvanceUnpack :: Buffer b => b -> Int -> Unpack Int
 guardAdvanceUnpack buf n@(I# n#) = do
   let len = bufferByteCount buf
       failOutOfBytes i =
-        fail $
-          "Ran out of bytes. Read " <> showBytes i <> " out of " <> showBytes len
-            ++ ". Requested to read " <> showBytes n <> " more."
+        failUnpack $
+          toSomeError $
+            RanOutOfBytesError
+              { ranOutOfBytesRead = i
+              , ranOutOfBytesAvailable = len
+              , ranOutOfBytesRequested = n
+              }
+  -- Check that we still have enough bytes, while guarding against integer overflow.
   join $ state $ \i@(I# i#) ->
     case addIntC# i# n# of
       (# adv#, 0# #) ->
@@ -208,19 +216,18 @@ unpackFail b = do
   let len = bufferByteCount b
   (a, consumedBytes) <- unpackLeftOver b
   when (consumedBytes /= len) $
-    fail $
-      "Buffer of length " <> showBytes len
-        ++ " was not fully consumed while unpacking " <> showType @a
-        ++ ". Unconsumed " <> showBytes (len - consumedBytes) <> " was leftover."
+    failT $
+      toSomeError $
+        NotFullyConsumedError
+          { notFullyConsumedRead = len
+          , notFullyConsumedAvailable = consumedBytes
+          , notFullyConsumedTypeName = showType @a
+          }
   pure a
 {-# INLINEABLE unpackFail #-}
 
 unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
 {-# INLINE unpackError #-}
-
-showBytes :: Int -> String
-showBytes 1 = "1 byte"
-showBytes n = show n ++ " bytes"
 
 newtype VarLen a = VarLen a
