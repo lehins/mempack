@@ -20,3 +20,7 @@ spec :: Spec
 spec = do
   describe "RoundTrip" $ do
     propRoundTrip @Int
+    propRoundTrip @Word
+    propRoundTrip @[Int]
+    propRoundTrip @[Word]
+    propRoundTrip @(Int, Word)

@@ -30,6 +30,7 @@ import Data.ByteString.Short (ShortByteString)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
 import Data.Proxy
+import Data.Semigroup (Sum (..))
 import Data.Typeable
 import GHC.Exts
 import GHC.ST
@@ -71,6 +72,21 @@ instance MemPack Int where
         (\addr# -> I# (indexIntOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackBuffer #-}
 
+instance MemPack Word where
+  packedByteCount _ = SIZEOF_HSWORD
+  {-# INLINE packedByteCount #-}
+  unsafePackInto (MutableByteArray mba#) a@(W# a#) = do
+    I# i# <- packIncrement a
+    lift_# (writeWord8ArrayAsWord# mba# i# a#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer b =
+    unpackIncrement# $ \i# ->
+      buffer
+        b
+        (\ba# -> W# (indexWord8ArrayAsWord# ba# i#))
+        (\addr# -> W# (indexWordOffAddr# (addr# `plusAddr#` i#) 0#))
+  {-# INLINE unpackBuffer #-}
+
 instance (MemPack a, MemPack b) => MemPack (a, b) where
   showType = "(" ++ showType @a ++ "," ++ showType @b ++ ")"
   packedByteCount (a, b) = packedByteCount a + packedByteCount b
@@ -83,6 +99,19 @@ instance (MemPack a, MemPack b) => MemPack (a, b) where
     !a <- unpackBuffer buf
     !b <- unpackBuffer buf
     pure (a, b)
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack a => MemPack [a] where
+  showType = "[" ++ showType @a ++ "]"
+  packedByteCount es = packedByteCount (length es) + getSum (foldMap (Sum . packedByteCount) es)
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba as = do
+    unsafePackInto mba (length as)
+    mapM_ (unsafePackInto mba) as
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = do
+    n <- unpackBuffer buf
+    replicateM n (unpackBuffer buf)
   {-# INLINE unpackBuffer #-}
 
 lift_# :: (State# s -> State# s) -> Pack s ()
