@@ -95,8 +95,8 @@ data NotFullyConsumedError = NotFullyConsumedError
 instance Show NotFullyConsumedError where
   show NotFullyConsumedError{..} =
     "Buffer of length " <> showBytes notFullyConsumedAvailable
-      ++ " was not fully consumed while unpacking " <> notFullyConsumedTypeName
-      ++ ". Unconsumed " <> showBytes (notFullyConsumedAvailable - notFullyConsumedRead)
+      ++ " was not fully consumed while unpacking '" <> notFullyConsumedTypeName
+      ++ "'. Unconsumed " <> showBytes (notFullyConsumedAvailable - notFullyConsumedRead)
       ++ " was leftover."
 
 instance Error NotFullyConsumedError

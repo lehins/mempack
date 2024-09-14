@@ -1,9 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BinaryLiterals #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -19,13 +22,13 @@ module Data.MemPack where
 
 #include "MachDeps.h"
 
-import GHC.Word
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Fail
 import Data.Array.Byte
 import Data.Bifunctor (first)
+import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString)
 import Data.MemPack.Buffer
@@ -36,6 +39,8 @@ import Data.Typeable
 import GHC.Exts
 import GHC.ST
 import GHC.Stack
+import GHC.Word
+import Numeric (showHex)
 
 newtype Pack s a = Pack
   { runPack :: StateT Int (ST s) a
@@ -247,4 +252,78 @@ unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
 {-# INLINE unpackError #-}
 
-newtype VarLen a = VarLen a
+newtype VarLen a = VarLen {unVarLen :: a}
+  deriving (Eq, Ord, Show, Bounded, Enum, Num, Real, Integral, Bits, FiniteBits)
+
+instance MemPack (VarLen Word16) where
+  packedByteCount = packedVarLenByteCount
+  {-# INLINE packedByteCount #-}
+  unsafePackInto buf (VarLen w16) = packIntoVarLenBits buf (VarLen w16)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer = decodeVarLenWord16
+  {-# INLINE unpackBuffer #-}
+
+packedVarLenByteCount :: FiniteBits b => VarLen b -> Int
+packedVarLenByteCount (VarLen x) =
+  case (finiteBitSize x - countLeadingZeros x) `quotRem` 7 of
+    (0, 0) -> 1
+    (q, 0) -> q
+    (q, _) -> q + 1
+{-# INLINE packedVarLenByteCount #-}
+
+packIntoVarLenBits ::
+  (Integral t, FiniteBits t) => MutableByteArray s -> VarLen t -> Pack s ()
+packIntoVarLenBits mba v@(VarLen x) = go numBits
+  where
+    topBit8 :: Word8
+    topBit8 = 0b_1000_0000
+    numBits = packedVarLenByteCount v * 7 - 7
+    go n
+      | n <= 0 = unsafePackInto mba (fromIntegral @_ @Word8 x .&. complement topBit8)
+      | otherwise = do
+          unsafePackInto mba (fromIntegral @_ @Word8 (x `shiftR` n) .|. topBit8)
+          go (n - 7)
+{-# INLINE packIntoVarLenBits #-}
+
+-- | Decode a variable length integral value that is encoded with 7 bits of data
+-- and the most significant bit (MSB), the 8th bit is set whenever there are
+-- more bits following. Continuation style allows us to avoid
+-- rucursion. Removing loops is good for performance.
+decode7BitVarLen ::
+  (Num a, Bits a, Buffer b) =>
+  -- | Buffer that contains encoded number
+  b ->
+  -- | Continuation that will be invoked if MSB is set
+  (Word8 -> a -> Unpack a) ->
+  -- | Will be set either to 0 initially or to the very first unmodified byte, which is
+  -- guaranteed to have the first bit set.
+  Word8 ->
+  -- | Accumulator
+  a ->
+  Unpack a
+decode7BitVarLen buf cont firstByte !acc = do
+  b8 :: Word8 <- unpackBuffer buf
+  if b8 `testBit` 7
+    then
+      cont (if firstByte == 0 then b8 else firstByte) (acc `shiftL` 7 .|. fromIntegral (b8 `clearBit` 7))
+    else pure (acc `shiftL` 7 .|. fromIntegral b8)
+{-# INLINE decode7BitVarLen #-}
+
+decodeVarLenWord16 ::
+  forall b.
+  Buffer b =>
+  b ->
+  Unpack (VarLen Word16)
+decodeVarLenWord16 buf = do
+  let d7 = decode7BitVarLen buf
+      d7last :: Word8 -> Word16 -> Unpack Word16
+      d7last !firstByte acc = do
+        res <- decode7BitVarLen buf (\_ _ -> fail "Too many bytes.") firstByte acc
+        -- Only while decoding the last 7bits we check if there was too many
+        -- bits supplied at the beginning.
+        unless (firstByte .&. 0b_1111_1100 == 0b_1000_0000) $
+          fail $
+            "More than 16bits was supplied. First byte: 0x" <> showHex firstByte ""
+        pure res
+  VarLen <$> d7 (d7 d7last) 0 0
+{-# INLINE decodeVarLenWord16 #-}

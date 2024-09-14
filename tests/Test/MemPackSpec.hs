@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -30,6 +31,9 @@ instance (Arbitrary a, Bounded a, Num a, Random a) => Arbitrary (E a) where
         , (25, choose (minBound, minBound + 100))
         , (25, choose (maxBound, maxBound - 100))
         ]
+
+deriving instance Random a => Random (VarLen a)
+deriving instance Arbitrary a => Arbitrary (VarLen a)
 
 expectRoundTrip :: forall a. (MemPack a, Eq a, Show a) => a -> Expectation
 expectRoundTrip a = do
@@ -82,3 +86,4 @@ spec = do
   memPackSpec @[E Int]
   memPackSpec @[E Word]
   memPackSpec @(E Int, E Word)
+  memPackSpec @(E (VarLen Word16))
