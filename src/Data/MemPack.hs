@@ -141,21 +141,26 @@ guardAdvanceUnpack buf n@(I# n#) = do
           then (failOutOfBytes i, i)
           else (pure i, I# adv#)
       _ -> (failOutOfBytes i, i)
+{-# INLINE guardAdvanceUnpack #-}
 
 pack :: forall a. (MemPack a, HasCallStack) => a -> ByteArray
 pack = packByteArray False
+{-# INLINE pack #-}
 
 packByteString :: forall a. (MemPack a, HasCallStack) => a -> ByteString
 packByteString = pinnedByteArrayToByteString . packByteArray True
+{-# INLINE packByteString #-}
 
 packShortByteString :: forall a. (MemPack a, HasCallStack) => a -> ShortByteString
 packShortByteString = byteArrayToShortByteString . pack
+{-# INLINE packShortByteString #-}
 
 packByteArray :: forall a. (MemPack a, HasCallStack) => Bool -> a -> ByteArray
 packByteArray isPinned a = runST $ do
   MutableByteArray mba# <- packMutableByteArray isPinned a
   ST $ \s# -> case unsafeFreezeByteArray# mba# s# of
     (# s'#, ba# #) -> (# s'#, ByteArray ba# #)
+{-# INLINE packByteArray #-}
 
 packMutableByteArray ::
   forall a s. (MemPack a, HasCallStack) => Bool -> a -> ST s (MutableByteArray s)
@@ -179,6 +184,7 @@ packMutableByteArray isPinned a = do
             ++ ". Filled " <> showBytes (filledBytes - len) <> " more than allowed into a buffer of length "
             ++ show len
   pure mba
+{-# INLINEABLE packMutableByteArray #-}
 
 unpackLeftOver :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError (a, Int)
 unpackLeftOver b = do
@@ -191,9 +197,11 @@ unpackLeftOver b = do
         ++ ". Consumed " <> showBytes (consumedBytes - len) <> " more than allowed from a buffer of length "
         ++ show len
   pure res
+{-# INLINEABLE unpackLeftOver #-}
 
 unpack :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Either SomeError a
 unpack = first fromMultipleErrors . runFailAgg . unpackFail
+{-# INLINE unpack #-}
 
 unpackFail :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError a
 unpackFail b = do
@@ -205,9 +213,11 @@ unpackFail b = do
         ++ " was not fully consumed while unpacking " <> showType @a
         ++ ". Unconsumed " <> showBytes (len - consumedBytes) <> " was leftover."
   pure a
+{-# INLINEABLE unpackFail #-}
 
 unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
+{-# INLINE unpackError #-}
 
 showBytes :: Int -> String
 showBytes 1 = "1 byte"
