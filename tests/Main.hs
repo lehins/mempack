@@ -2,7 +2,7 @@
 
 module Main where
 
-import Spec (spec)
+import qualified Test.MemPackSpec as MemPack (spec)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, hSetEncoding, stdout, utf8)
 import Test.Hspec.Runner
 
@@ -21,4 +21,5 @@ main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   hSetEncoding stdout utf8
-  hspecWith config spec
+  hspecWith config $ do
+    MemPack.spec

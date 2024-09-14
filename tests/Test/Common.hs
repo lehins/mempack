@@ -1,4 +1,4 @@
-module Common
+module Test.Common
   ( module X
   ) where
 

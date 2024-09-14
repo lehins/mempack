@@ -25,10 +25,19 @@ tested-with:         GHC == 8.0.2
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     Data.MemPack
+                     , Data.MemPack.Buffer
+                     , Data.MemPack.Error
+                     , Lib
 
   other-modules:
   build-depends:       base >= 4.8 && < 5
+                     , bytestring
+                     , FailT
+                     , mtl
+                     , text
+  if !impl(ghc >= 9.4)
+    build-depends:     data-array-byte
 
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -72,10 +81,8 @@ test-suite tests
   type:               exitcode-stdio-1.0
   hs-source-dirs:     tests
   main-is:            Main.hs
-  other-modules:      Common
-                    , LibSpec
-                    , Spec
-  build-tool-depends: hspec-discover:hspec-discover
+  other-modules:      Test.Common
+                    , Test.MemPackSpec
   build-depends:      base
                     , mempack
                     , hspec
