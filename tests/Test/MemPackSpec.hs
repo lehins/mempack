@@ -128,6 +128,7 @@ spec = do
   memPackSpec @(E (VarLen Word32))
   memPackSpec @(E (VarLen Word64))
   memPackSpec @ByteArray
+  memPackSpec @ByteString
   memPackSpec @ShortByteString
   memPackSpec @Backtrack
 

@@ -17,7 +17,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short.Internal as SBS
 import qualified Data.ByteString.Internal as BS
 import GHC.Exts
-import GHC.IO
+import GHC.ST
 import GHC.ForeignPtr
 
 -- | Immutable memory buffer
@@ -45,33 +45,23 @@ instance Buffer BS.ByteString where
   {-# INLINE bufferByteCount #-}
 
   buffer bs _ f =
-    BS.accursedUnutterablePerformIO $ withPtrByteString bs $ \(Ptr addr#) -> pure (f addr#)
+    runST $ withPtrByteStringST bs $ \(Ptr addr#) -> pure $! f addr#
   {-# INLINE buffer #-}
 
-withPtrByteString :: BS.ByteString -> (Ptr a -> IO b) -> IO b
+-- | It is ok to use ByteString withing ST, as long as underlying pointer is never mutated
+-- or returned from the supplied action.
+withPtrByteStringST :: BS.ByteString -> (Ptr a -> ST s b) -> ST s b
 #if MIN_VERSION_bytestring(0,11,0)
-withPtrByteString (BS.BS (ForeignPtr addr# ptrContents) _) f = do
+withPtrByteStringST (BS.BS (ForeignPtr addr# ptrContents) _) f = do
 #else
-withPtrByteString (BS.PS (ForeignPtr addr0# ptrContents) (I# offset#) _) f = do
+withPtrByteStringST (BS.PS (ForeignPtr addr0# ptrContents) (I# offset#) _) f = do
   let !addr# = addr0# `plusAddr#` offset#
 #endif
   !r <- f (Ptr addr#)
-  IO $ \s# -> (# touch# ptrContents s#, () #)
+  -- It is safe to use `touch#` within ST, so `unsafeCoerce#` is OK
+  ST $ \s# -> (# unsafeCoerce# (touch# ptrContents (unsafeCoerce# s#)), () #)
   pure r
-{-# INLINE withPtrByteString #-}
-
--- bufUnsafeIndex :: b -> Int -> Word8
-
--- bufUnsafeCopySliceInto :: MutableByteArray s -> b -> Int -> Int -> ST s ()
-
---bufToByteArray :: b -> ByteArray
-
--- bufToByteString :: b -> ByteString
-
--- bufSliceToByteArray :: b -> Int -> Int -> ByteArray
-
--- bufSliceToByteString :: b -> Int -> Int -> ByteString
-
+{-# INLINE withPtrByteStringST #-}
 
 pinnedByteArrayToByteString :: ByteArray -> BS.ByteString
 pinnedByteArrayToByteString (ByteArray ba#) =

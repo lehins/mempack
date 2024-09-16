@@ -219,6 +219,21 @@ instance MemPack ShortByteString where
   unpackBuffer buf = byteArrayToShortByteString <$> unpackByteArray False buf
   {-# INLINE unpackBuffer #-}
 
+instance MemPack ByteString where
+  packedByteCount ba =
+    let len = bufferByteCount ba
+     in packedByteCount (Length len) + len
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba@(MutableByteArray mba#) bs = do
+    let !len@(I# len#) = bufferByteCount bs
+    unsafePackInto mba (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    Pack $ lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
+      st_ (copyAddrToByteArray# addr# mba# curPos# len#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = pinnedByteArrayToByteString <$> unpackByteArray True buf
+  {-# INLINE unpackBuffer #-}
+
 unpackByteArray :: Buffer b => Bool -> b -> Unpack ByteArray
 unpackByteArray isPinned buf = do
   Length len@(I# len#) <- unpackBuffer buf
