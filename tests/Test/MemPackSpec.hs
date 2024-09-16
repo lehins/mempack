@@ -12,14 +12,14 @@ import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Fail
-import Data.Array.Byte (ByteArray)
+import Data.Array.Byte (ByteArray(..))
 import Data.ByteString (ByteString)
-import Data.ByteString.Short (ShortByteString)
+import Data.ByteString.Short.Internal as SBS (ShortByteString(..))
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
 import Data.Word
-import System.Random
+import System.Random.Stateful
 import Test.Common
 
 -- | Generate extrema around boundaries
@@ -127,4 +127,9 @@ spec = do
   memPackSpec @(E (VarLen Word16))
   memPackSpec @(E (VarLen Word32))
   memPackSpec @(E (VarLen Word64))
+  memPackSpec @ByteArray
+  memPackSpec @ShortByteString
   memPackSpec @Backtrack
+
+
+

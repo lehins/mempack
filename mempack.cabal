@@ -72,6 +72,8 @@ test-suite tests
                     , mtl
                     , QuickCheck
                     , random
+  if !impl(ghc >= 9.4)
+    build-depends:     data-array-byte
 
   default-language:   Haskell2010
   ghc-options:        -Wall

@@ -87,3 +87,7 @@ pinnedByteArrayToForeignPtr ba# =
 byteArrayToShortByteString :: ByteArray -> SBS.ShortByteString
 byteArrayToShortByteString (ByteArray ba#) = SBS.SBS ba#
 {-# INLINE byteArrayToShortByteString #-}
+
+byteArrayFromShortByteString :: SBS.ShortByteString -> ByteArray
+byteArrayFromShortByteString (SBS.SBS ba#) = ByteArray ba#
+{-# INLINE byteArrayFromShortByteString #-}

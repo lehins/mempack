@@ -195,9 +195,50 @@ instance MemPack a => MemPack [a] where
     replicateM n (unpackBuffer buf)
   {-# INLINE unpackBuffer #-}
 
+instance MemPack ByteArray where
+  packedByteCount ba =
+    let len = bufferByteCount ba
+     in packedByteCount (Length len) + len
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba@(MutableByteArray mba#) ba@(ByteArray ba#) = do
+    let !len@(I# len#) = bufferByteCount ba
+    unsafePackInto mba (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    lift_# (copyByteArray# ba# 0# mba# curPos# len#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer = unpackByteArray False
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack ShortByteString where
+  packedByteCount ba =
+    let len = bufferByteCount ba
+     in packedByteCount (Length len) + len
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba = unsafePackInto mba . byteArrayFromShortByteString
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = byteArrayToShortByteString <$> unpackByteArray False buf
+  {-# INLINE unpackBuffer #-}
+
+unpackByteArray :: Buffer b => Bool -> b -> Unpack ByteArray
+unpackByteArray isPinned buf = do
+  Length len@(I# len#) <- unpackBuffer buf
+  I# curPos# <- guardAdvanceUnpack buf len
+  pure $! runST $ do
+    mba@(MutableByteArray mba#) <- newMutableByteArray isPinned len
+    buffer
+      buf
+      (\ba# -> st_ (copyByteArray# ba# curPos# mba# 0# len#))
+      (\addr# -> st_ (copyAddrToByteArray# (addr# `plusAddr#` curPos#) mba# 0# len#))
+    freezeMutableByteArray mba
+{-# INLINE unpackByteArray #-}
+
 lift_# :: (State# s -> State# s) -> Pack s ()
 lift_# f = Pack $ lift $ ST $ \s# -> (# f s#, () #)
 {-# INLINE lift_# #-}
+
+st_ :: (State# s -> State# s) -> ST s ()
+st_ f = ST $ \s# -> (# f s#, () #)
+{-# INLINE st_ #-}
 
 packIncrement :: MemPack a => a -> Pack s Int
 packIncrement a =
@@ -240,19 +281,27 @@ packShortByteString = byteArrayToShortByteString . pack
 {-# INLINE packShortByteString #-}
 
 packByteArray :: forall a. (MemPack a, HasCallStack) => Bool -> a -> ByteArray
-packByteArray isPinned a = runST $ do
-  MutableByteArray mba# <- packMutableByteArray isPinned a
+packByteArray isPinned a =
+  runST $
+    packMutableByteArray isPinned a >>= freezeMutableByteArray
+{-# INLINE packByteArray #-}
+
+freezeMutableByteArray :: MutableByteArray d -> ST d ByteArray
+freezeMutableByteArray (MutableByteArray mba#) =
   ST $ \s# -> case unsafeFreezeByteArray# mba# s# of
     (# s'#, ba# #) -> (# s'#, ByteArray ba# #)
-{-# INLINE packByteArray #-}
+
+newMutableByteArray :: Bool -> Int -> ST s (MutableByteArray s)
+newMutableByteArray isPinned (I# len#) =
+  ST $ \s# -> case (if isPinned then newPinnedByteArray# else newByteArray#) len# s# of
+    (# s'#, mba# #) -> (# s'#, MutableByteArray mba# #)
+{-# INLINE newMutableByteArray #-}
 
 packMutableByteArray ::
   forall a s. (MemPack a, HasCallStack) => Bool -> a -> ST s (MutableByteArray s)
 packMutableByteArray isPinned a = do
-  let !len@(I# len#) = packedByteCount a
-  mba <-
-    ST $ \s# -> case (if isPinned then newPinnedByteArray# else newByteArray#) len# s# of
-      (# s'#, mba# #) -> (# s'#, MutableByteArray mba# #)
+  let len = packedByteCount a
+  mba <- newMutableByteArray isPinned len
   filledBytes <- execStateT (runPack (unsafePackInto mba a)) 0
   when (filledBytes /= len) $
     if (filledBytes < len)
