@@ -83,7 +83,13 @@ spec = do
   memPackSpec @(E Int)
   memPackSpec @(E Word)
   memPackSpec @(E Word8)
+  memPackSpec @(E Word16)
+  memPackSpec @(E Word32)
+  memPackSpec @(E Word64)
   memPackSpec @[E Int]
   memPackSpec @[E Word]
   memPackSpec @(E Int, E Word)
+  memPackSpec @(E (VarLen Word))
   memPackSpec @(E (VarLen Word16))
+  memPackSpec @(E (VarLen Word32))
+  memPackSpec @(E (VarLen Word64))

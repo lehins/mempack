@@ -114,6 +114,54 @@ instance MemPack Word8 where
         (\addr# -> W8# (indexWord8OffAddr# addr# i#))
   {-# INLINE unpackBuffer #-}
 
+instance MemPack Word16 where
+  packedByteCount _ = SIZEOF_WORD16
+  {-# INLINE packedByteCount #-}
+  unsafePackInto (MutableByteArray mba#) a@(W16# a#) = do
+    I# i# <- packIncrement a
+    lift_# (writeWord8ArrayAsWord16# mba# i# a#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_WORD16
+    pure $!
+      buffer
+        b
+        (\ba# -> W16# (indexWord8ArrayAsWord16# ba# i#))
+        (\addr# -> W16# (indexWord16OffAddr# (addr# `plusAddr#` i#) 0#))
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack Word32 where
+  packedByteCount _ = SIZEOF_WORD32
+  {-# INLINE packedByteCount #-}
+  unsafePackInto (MutableByteArray mba#) a@(W32# a#) = do
+    I# i# <- packIncrement a
+    lift_# (writeWord8ArrayAsWord32# mba# i# a#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_WORD32
+    pure $!
+      buffer
+        b
+        (\ba# -> W32# (indexWord8ArrayAsWord32# ba# i#))
+        (\addr# -> W32# (indexWord32OffAddr# (addr# `plusAddr#` i#) 0#))
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack Word64 where
+  packedByteCount _ = SIZEOF_WORD64
+  {-# INLINE packedByteCount #-}
+  unsafePackInto (MutableByteArray mba#) a@(W64# a#) = do
+    I# i# <- packIncrement a
+    lift_# (writeWord8ArrayAsWord64# mba# i# a#)
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer b = do
+    I# i# <- guardAdvanceUnpack b SIZEOF_WORD64
+    pure $!
+      buffer
+        b
+        (\ba# -> W64# (indexWord8ArrayAsWord64# ba# i#))
+        (\addr# -> W64# (indexWord64OffAddr# (addr# `plusAddr#` i#) 0#))
+  {-# INLINE unpackBuffer #-}
+
 instance (MemPack a, MemPack b) => MemPack (a, b) where
   typeName = "(" ++ typeName @a ++ "," ++ typeName @b ++ ")"
   packedByteCount (a, b) = packedByteCount a + packedByteCount b
@@ -258,10 +306,80 @@ newtype VarLen a = VarLen {unVarLen :: a}
 instance MemPack (VarLen Word16) where
   packedByteCount = packedVarLenByteCount
   {-# INLINE packedByteCount #-}
-  unsafePackInto buf (VarLen w16) = packIntoVarLenBits buf (VarLen w16)
+  unsafePackInto mba v@(VarLen x) = p7 (p7 (p7 (errorTooManyBits "Word16"))) (numBits - 7)
+    where
+      p7 = packIntoCont7 mba x
+      {-# INLINE p7 #-}
+      numBits = packedVarLenByteCount v * 7
   {-# INLINE unsafePackInto #-}
-  unpackBuffer = decodeVarLenWord16
+  unpackBuffer buf = do
+    let d7 = unpack7BitVarLen buf
+        {-# INLINE d7 #-}
+    VarLen <$> d7 (d7 (unpack7BitVarLenLast buf 0b_1111_1100)) 0 0
   {-# INLINE unpackBuffer #-}
+
+instance MemPack (VarLen Word32) where
+  packedByteCount = packedVarLenByteCount
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba v@(VarLen x) = p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word32"))))) (numBits - 7)
+    where
+      p7 = packIntoCont7 mba x
+      {-# INLINE p7 #-}
+      numBits = packedVarLenByteCount v * 7
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = do
+    let d7 = unpack7BitVarLen buf
+        {-# INLINE d7 #-}
+    VarLen <$> d7 (d7 (d7 (d7 (unpack7BitVarLenLast buf 0b_1111_0000)))) 0 0
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack (VarLen Word64) where
+  packedByteCount = packedVarLenByteCount
+  {-# INLINE packedByteCount #-}
+  unsafePackInto mba v@(VarLen x) =
+    p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word64")))))))))) (numBits - 7)
+    where
+      p7 = packIntoCont7 mba x
+      {-# INLINE p7 #-}
+      numBits = packedVarLenByteCount v * 7
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = do
+    let d7 = unpack7BitVarLen buf
+        {-# INLINE d7 #-}
+    VarLen <$> d7 (d7 (d7 (d7 (d7 (d7 (d7 (d7 (d7 (unpack7BitVarLenLast buf 0b_1111_1110))))))))) 0 0
+  {-# INLINE unpackBuffer #-}
+
+instance MemPack (VarLen Word) where
+  packedByteCount = packedVarLenByteCount
+  {-# INLINE packedByteCount #-}
+#if WORD_SIZE_IN_BITS == 32
+  unsafePackInto mba v@(VarLen x) = p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word"))))) (numBits - 7)
+    where
+      p7 = packIntoCont7 mba x
+      {-# INLINE p7 #-}
+      numBits = packedVarLenByteCount v * 7
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = do
+    let d7 = unpack7BitVarLen buf
+        {-# INLINE d7 #-}
+    VarLen <$> d7 (d7 (d7 (d7 (unpack7BitVarLenLast buf 0b_1111_0000)))) 0 0
+  {-# INLINE unpackBuffer #-}
+#elif WORD_SIZE_IN_BITS == 64
+  unsafePackInto mba v@(VarLen x) =
+    p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word")))))))))) (numBits - 7)
+    where
+      p7 = packIntoCont7 mba x
+      {-# INLINE p7 #-}
+      numBits = packedVarLenByteCount v * 7
+  {-# INLINE unsafePackInto #-}
+  unpackBuffer buf = do
+    let d7 = unpack7BitVarLen buf
+        {-# INLINE d7 #-}
+    VarLen <$> d7 (d7 (d7 (d7 (d7 (d7 (d7 (d7 (d7 (unpack7BitVarLenLast buf 0b_1111_1110))))))))) 0 0
+  {-# INLINE unpackBuffer #-}
+#else
+#error "Only 32bit and 64bit systems are supported"
+#endif
 
 packedVarLenByteCount :: FiniteBits b => VarLen b -> Int
 packedVarLenByteCount (VarLen x) =
@@ -285,11 +403,27 @@ packIntoVarLenBits mba v@(VarLen x) = go numBits
           go (n - 7)
 {-# INLINE packIntoVarLenBits #-}
 
+errorTooManyBits :: [Char] -> a
+errorTooManyBits name =
+  error $ "Bug detected. Trying to pack more bits for " ++ name ++ " than it should be posssible"
+
+packIntoCont7 ::
+  (Bits t, Integral t) => MutableByteArray s -> t -> (Int -> Pack s ()) -> Int -> Pack s ()
+packIntoCont7 mba x cont n
+  | n <= 0 = unsafePackInto mba (fromIntegral @_ @Word8 x .&. complement topBit8)
+  | otherwise = do
+      unsafePackInto mba (fromIntegral @_ @Word8 (x `shiftR` n) .|. topBit8)
+      cont (n - 7)
+  where
+    topBit8 :: Word8
+    topBit8 = 0b_1000_0000
+{-# INLINE packIntoCont7 #-}
+
 -- | Decode a variable length integral value that is encoded with 7 bits of data
 -- and the most significant bit (MSB), the 8th bit is set whenever there are
 -- more bits following. Continuation style allows us to avoid
--- rucursion. Removing loops is good for performance.
-decode7BitVarLen ::
+-- recursion. Removing loops is good for performance.
+unpack7BitVarLen ::
   (Num a, Bits a, Buffer b) =>
   -- | Buffer that contains encoded number
   b ->
@@ -301,29 +435,30 @@ decode7BitVarLen ::
   -- | Accumulator
   a ->
   Unpack a
-decode7BitVarLen buf cont firstByte !acc = do
+unpack7BitVarLen buf cont firstByte !acc = do
   b8 :: Word8 <- unpackBuffer buf
   if b8 `testBit` 7
     then
       cont (if firstByte == 0 then b8 else firstByte) (acc `shiftL` 7 .|. fromIntegral (b8 `clearBit` 7))
     else pure (acc `shiftL` 7 .|. fromIntegral b8)
-{-# INLINE decode7BitVarLen #-}
+{-# INLINE unpack7BitVarLen #-}
 
-decodeVarLenWord16 ::
-  forall b.
-  Buffer b =>
+unpack7BitVarLenLast ::
+  forall t b.
+  (Num t, Bits t, MemPack t, Buffer b) =>
   b ->
-  Unpack (VarLen Word16)
-decodeVarLenWord16 buf = do
-  let d7 = decode7BitVarLen buf
-      d7last :: Word8 -> Word16 -> Unpack Word16
-      d7last !firstByte acc = do
-        res <- decode7BitVarLen buf (\_ _ -> fail "Too many bytes.") firstByte acc
-        -- Only while decoding the last 7bits we check if there was too many
-        -- bits supplied at the beginning.
-        unless (firstByte .&. 0b_1111_1100 == 0b_1000_0000) $
-          fail $
-            "More than 16bits was supplied. First byte: 0x" <> showHex firstByte ""
-        pure res
-  VarLen <$> d7 (d7 d7last) 0 0
-{-# INLINE decodeVarLenWord16 #-}
+  Word8 ->
+  Word8 ->
+  t ->
+  Unpack t
+unpack7BitVarLenLast buf mask firstByte acc = do
+  res <- unpack7BitVarLen buf (\_ _ -> fail "Too many bytes.") firstByte acc
+  -- Only while decoding the last 7bits we check if there was too many
+  -- bits supplied at the beginning.
+  unless (firstByte .&. mask == 0b_1000_0000) $
+    fail $
+      "Unexpected bits for "
+        ++ typeName @t
+        ++ " were set in the first byte of 'VarLen': 0x" <> showHex firstByte ""
+  pure res
+{-# INLINE unpack7BitVarLenLast #-}
