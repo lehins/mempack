@@ -17,6 +17,19 @@ main = do
   defaultMain
     [ env (pure [1 :: Int .. 100000]) $ \xs ->
         bgroup
+          "Pack"
+          [ bgroup
+              "ByteString"
+              [ bench "MemPack" $ nf packByteString xs
+              , bench "Store" $ nf Store.encode xs
+              , bench "Flat" $ nf Flat.flat xs
+              , bench "Cereal" $ nf Cereal.encode xs
+              , bench "Binary" $ nf (toStrict . Binary.encode) xs
+              , bench "Serialise" $ nf (toStrict . Serialise.serialise) xs
+              ]
+          ]
+    , env (pure [1 :: Int .. 100000]) $ \xs ->
+        bgroup
           "RoundTrip"
           [ bgroup
               "ByteString"
@@ -25,7 +38,8 @@ main = do
               , bench "Flat" $ nf (either (error . show) id . Flat.unflat @[Int] . Flat.flat) xs
               , bench "Cereal" $ nf (either (error . show) id . Cereal.decode @[Int] . Cereal.encode) xs
               , bench "Binary" $ nf (Binary.decode @[Int] . fromStrict . toStrict . Binary.encode) xs
-              , bench "Serialise" $ nf (Serialise.deserialiseOrFail @[Int] . fromStrict . toStrict . Serialise.serialise) xs
+              , bench "Serialise" $
+                  nf (Serialise.deserialiseOrFail @[Int] . fromStrict . toStrict . Serialise.serialise) xs
               ]
           , bgroup
               "ShortByteString"
