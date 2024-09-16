@@ -184,14 +184,14 @@ instance (MemPack a, MemPack b) => MemPack (a, b) where
 
 instance MemPack a => MemPack [a] where
   typeName = "[" ++ typeName @a ++ "]"
-  packedByteCount es = packedByteCount (length es) + getSum (foldMap (Sum . packedByteCount) es)
+  packedByteCount es = packedByteCount (Length (length es)) + getSum (foldMap (Sum . packedByteCount) es)
   {-# INLINE packedByteCount #-}
   unsafePackInto mba as = do
-    unsafePackInto mba (length as)
+    unsafePackInto mba (Length (length as))
     mapM_ (unsafePackInto mba) as
   {-# INLINE unsafePackInto #-}
   unpackBuffer buf = do
-    n <- unpackBuffer buf
+    Length n <- unpackBuffer buf
     replicateM n (unpackBuffer buf)
   {-# INLINE unpackBuffer #-}
 
@@ -468,3 +468,19 @@ unpack7BitVarLenLast buf mask firstByte acc = do
         ++ " were set in the first byte of 'VarLen': 0x" <> showHex firstByte ""
   pure res
 {-# INLINE unpack7BitVarLenLast #-}
+
+newtype Length = Length {unLength :: Int}
+  deriving (Eq, Show, Num)
+
+instance MemPack Length where
+  packedByteCount = packedByteCount . VarLen . fromIntegral @Int @Word . unLength
+  unsafePackInto buf (Length n)
+    | n < 0 = error "Length cannot be negative"
+    | otherwise = unsafePackInto buf (VarLen (fromIntegral @Int @Word n))
+  {-# INLINE unsafePackInto #-}
+
+  unpackBuffer buf = do
+    VarLen (w :: Word) <- unpackBuffer buf
+    when (testBit w (finiteBitSize w)) $ fail "Attempt to unpack negative length was detected"
+    pure $ Length $ fromIntegral @Word @Int w
+  {-# INLINE unpackBuffer #-}

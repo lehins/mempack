@@ -81,7 +81,7 @@ expectNotFullyConsumed a (NonEmpty xs) = do
             | Just err <- fromSomeError e -> do
                 notFullyConsumedRead err `shouldBe` bufferByteCount buf
                 notFullyConsumedAvailable err `shouldBe` bufferByteCount buf
-                  + packedByteCount extraByteCount -- account for list length
+                  + packedByteCount (Length extraByteCount) -- account for list length
                   + extraByteCount
                 notFullyConsumedTypeName err `shouldBe` typeName @a
             | otherwise -> expectationFailure $ "Unexpected failure: " ++ show e
