@@ -22,6 +22,7 @@ module Data.MemPack where
 
 #include "MachDeps.h"
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.State.Strict
@@ -51,6 +52,11 @@ newtype Unpack a = Unpack
   { runUnpack :: StateT Int (Fail SomeError) a
   }
   deriving (Functor, Applicative, Monad, MonadFail, MonadState Int)
+
+instance Alternative Unpack where
+  empty = Unpack $ lift empty
+  Unpack (StateT m1) <|> Unpack (StateT m2) =
+    Unpack $ StateT $ \s -> m1 s <|> m2 s
 
 failUnpack :: Error e => e -> Unpack a
 failUnpack = Unpack . lift . failT . toSomeError
