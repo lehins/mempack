@@ -10,7 +10,6 @@ module Test.MemPackSpec (spec) where
 
 import Control.Applicative ((<|>))
 import Control.Monad
-import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Fail
 import Data.Array.Byte (ByteArray (..))

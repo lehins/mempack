@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -45,26 +46,89 @@ import GHC.Word
 import Numeric (showHex)
 
 newtype Pack s a = Pack
-  { runPack :: ReaderT (MutableByteArray s) (StateT Int (ST s)) a
+  { runPack :: MutableByteArray s -> StateT Int (ST s) a
   }
-  deriving (Functor, Applicative, Monad, MonadReader (MutableByteArray s), MonadState Int)
+
+instance Functor (Pack s) where
+  fmap f (Pack p) = Pack $ \buf -> fmap f (p buf)
+  {-# INLINE fmap #-}
+instance Applicative (Pack s) where
+  pure = Pack . const . pure
+  {-# INLINE pure #-}
+  Pack a1 <*> Pack a2 =
+    Pack $ \buf -> a1 buf <*> a2 buf
+  {-# INLINE (<*>) #-}
+  Pack a1 *> Pack a2 =
+    Pack $ \buf -> a1 buf *> a2 buf
+  {-# INLINE (*>) #-}
+instance Monad (Pack s) where
+  Pack m1 >>= p =
+    Pack $ \buf -> m1 buf >>= \res -> runPack (p res) buf
+  {-# INLINE (>>=) #-}
+instance MonadReader (MutableByteArray s) (Pack s) where
+  ask = Pack pure
+  {-# INLINE ask #-}
+  local f (Pack p) = Pack (p . f)
+  {-# INLINE local #-}
+  reader f = Pack (pure . f)
+  {-# INLINE reader #-}
+instance MonadState Int (Pack s) where
+  get = Pack $ const get
+  {-# INLINE get #-}
+  put = Pack . const . put
+  {-# INLINE put #-}
+  state = Pack . const . state
+  {-# INLINE state #-}
 
 newtype Unpack b a = Unpack
-  { runUnpack :: ReaderT b (StateT Int (Fail SomeError)) a
+  { runUnpack :: b -> StateT Int (Fail SomeError) a
   }
-  deriving (Functor, Applicative, Monad, MonadFail, MonadReader b, MonadState Int)
+
+instance Functor (Unpack s) where
+  fmap f (Unpack p) = Unpack $ \buf -> fmap f (p buf)
+  {-# INLINE fmap #-}
+instance Applicative (Unpack b) where
+  pure = Unpack . const . pure
+  {-# INLINE pure #-}
+  Unpack a1 <*> Unpack a2 =
+    Unpack $ \buf -> a1 buf <*> a2 buf
+  {-# INLINE (<*>) #-}
+  Unpack a1 *> Unpack a2 =
+    Unpack $ \buf -> a1 buf *> a2 buf
+  {-# INLINE (*>) #-}
+instance Monad (Unpack b) where
+  Unpack m1 >>= p =
+    Unpack $ \buf -> m1 buf >>= \res -> runUnpack (p res) buf
+  {-# INLINE (>>=) #-}
+instance MonadFail (Unpack b) where
+  fail = Unpack . const . fail
+instance MonadReader b (Unpack b) where
+  ask = Unpack pure
+  {-# INLINE ask #-}
+  local f (Unpack p) = Unpack (p . f)
+  {-# INLINE local #-}
+  reader f = Unpack (pure . f)
+  {-# INLINE reader #-}
+instance MonadState Int (Unpack b) where
+  get = Unpack $ const get
+  {-# INLINE get #-}
+  put = Unpack . const . put
+  {-# INLINE put #-}
+  state = Unpack . const . state
+  {-# INLINE state #-}
+
 
 instance Alternative (Unpack b) where
-  empty = Unpack $ lift $ lift empty
-  Unpack (ReaderT r1) <|> Unpack (ReaderT r2) =
-    Unpack $ ReaderT $ \env ->
-      case r1 env of
+  empty = Unpack $ \_ -> lift empty
+  Unpack r1 <|> Unpack r2 =
+    Unpack $ \buf ->
+      case r1 buf of
         StateT m1 ->
-          case r2 env of
+          case r2 buf of
             StateT m2 -> StateT $ \s -> m1 s <|> m2 s
 
 failUnpack :: Error e => e -> Unpack b a
-failUnpack = Unpack . lift . lift . failT . toSomeError
+failUnpack e = Unpack $ \_ -> lift $ failT (toSomeError e)
 
 class MemPack a where
   typeName :: String
@@ -246,8 +310,7 @@ instance MemPack ByteString where
     let !len@(I# len#) = bufferByteCount bs
     unsafePackInto (Length len)
     I# curPos# <- state $ \i -> (i, i + len)
-    MutableByteArray mba# <- ask
-    Pack $ lift $ lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
+    Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
       st_ (copyAddrToByteArray# addr# mba# curPos# len#)
   {-# INLINE unsafePackInto #-}
   unpackBuffer = pinnedByteArrayToByteString <$> unpackByteArray True
@@ -268,7 +331,7 @@ unpackByteArray isPinned = do
 {-# INLINE unpackByteArray #-}
 
 lift_# :: (State# s -> State# s) -> Pack s ()
-lift_# f = Pack $ lift $ lift $ ST $ \s# -> (# f s#, () #)
+lift_# f = Pack $ \_ -> lift $ ST $ \s# -> (# f s#, () #)
 {-# INLINE lift_# #-}
 
 st_ :: (State# s -> State# s) -> ST s ()
@@ -337,7 +400,7 @@ packMutableByteArray ::
 packMutableByteArray isPinned a = do
   let len = packedByteCount a
   mba <- newMutableByteArray isPinned len
-  filledBytes <- execStateT (runReaderT (runPack (unsafePackInto a)) mba) 0
+  filledBytes <- execStateT (runPack (unsafePackInto a) mba) 0
   when (filledBytes /= len) $
     if (filledBytes < len)
       then
@@ -357,7 +420,7 @@ packMutableByteArray isPinned a = do
 unpackLeftOver :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError (a, Int)
 unpackLeftOver b = do
   let len = bufferByteCount b
-  res@(_, consumedBytes) <- runStateT (runReaderT (runUnpack unpackBuffer) b) 0
+  res@(_, consumedBytes) <- runStateT (runUnpack unpackBuffer b) 0
   when (consumedBytes > len) $
     -- This is a critical error, therefore we are not gracefully failing this unpacking
     error $
