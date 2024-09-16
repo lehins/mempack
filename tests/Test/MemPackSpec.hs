@@ -10,11 +10,12 @@ module Test.MemPackSpec (spec) where
 
 import Control.Applicative ((<|>))
 import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Fail
-import Data.Array.Byte (ByteArray(..))
+import Data.Array.Byte (ByteArray (..))
 import Data.ByteString (ByteString)
-import Data.ByteString.Short.Internal as SBS (ShortByteString(..))
+import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
@@ -53,17 +54,17 @@ instance MemPack Backtrack where
     (+ 1) . \case
       IntCase i -> packedByteCount i
       Word16Case i -> packedByteCount i
-  unsafePackInto buf = \case
-    IntCase i -> unsafePackInto buf (0 :: Word8) >> unsafePackInto buf i
-    Word16Case i -> unsafePackInto buf (1 :: Word8) >> unsafePackInto buf i
-  unpackBuffer buf =
+  unsafePackInto = \case
+    IntCase i -> unsafePackInto (0 :: Word8) >> unsafePackInto i
+    Word16Case i -> unsafePackInto (1 :: Word8) >> unsafePackInto i
+  unpackBuffer =
     (IntCase <$> unpackCase 0) <|> (Word16Case <$> unpackCase 1)
     where
-      unpackCase :: MemPack a => Word8 -> Unpack a
+      unpackCase :: (Buffer b, MemPack a) => Word8 -> Unpack b a
       unpackCase t = do
-        t' <- unpackBuffer buf
+        t' <- unpackBuffer
         unless (t == t') $ fail "Tag mismatch"
-        unpackBuffer buf
+        unpackBuffer
 
 expectRoundTrip :: forall a. (MemPack a, Eq a, Show a) => a -> Expectation
 expectRoundTrip a = do
@@ -131,6 +132,3 @@ spec = do
   memPackSpec @ByteString
   memPackSpec @ShortByteString
   memPackSpec @Backtrack
-
-
-
