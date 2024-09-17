@@ -273,7 +273,8 @@ instance MemPack a => MemPack [a] where
   {-# INLINE unsafePackInto #-}
   unpackBuffer = do
     Length n <- unpackBuffer
-    replicateM n unpackBuffer
+    Unpack $ \buf ->
+      replicateM n (runUnpack unpackBuffer buf)
   {-# INLINE unpackBuffer #-}
 
 instance MemPack ByteArray where
