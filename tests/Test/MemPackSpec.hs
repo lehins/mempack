@@ -53,17 +53,17 @@ instance MemPack Backtrack where
     (+ 1) . \case
       IntCase i -> packedByteCount i
       Word16Case i -> packedByteCount i
-  unsafePackInto = \case
-    IntCase i -> unsafePackInto (0 :: Word8) >> unsafePackInto i
-    Word16Case i -> unsafePackInto (1 :: Word8) >> unsafePackInto i
-  unpackBuffer =
+  packM = \case
+    IntCase i -> packM (0 :: Word8) >> packM i
+    Word16Case i -> packM (1 :: Word8) >> packM i
+  unpackM =
     (IntCase <$> unpackCase 0) <|> (Word16Case <$> unpackCase 1)
     where
       unpackCase :: (Buffer b, MemPack a) => Word8 -> Unpack b a
       unpackCase t = do
-        t' <- unpackBuffer
+        t' <- unpackM
         unless (t == t') $ fail "Tag mismatch"
-        unpackBuffer
+        unpackM
 
 expectRoundTrip :: forall a. (MemPack a, Eq a, Show a) => a -> Expectation
 expectRoundTrip a = do

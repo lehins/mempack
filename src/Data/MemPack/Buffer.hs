@@ -48,6 +48,18 @@ instance Buffer BS.ByteString where
     runST $ withPtrByteStringST bs $ \(Ptr addr#) -> pure $! f addr#
   {-# INLINE buffer #-}
 
+
+newMutableByteArray :: Bool -> Int -> ST s (MutableByteArray s)
+newMutableByteArray isPinned (I# len#) =
+  ST $ \s# -> case (if isPinned then newPinnedByteArray# else newByteArray#) len# s# of
+    (# s'#, mba# #) -> (# s'#, MutableByteArray mba# #)
+{-# INLINE newMutableByteArray #-}
+
+freezeMutableByteArray :: MutableByteArray d -> ST d ByteArray
+freezeMutableByteArray (MutableByteArray mba#) =
+  ST $ \s# -> case unsafeFreezeByteArray# mba# s# of
+    (# s'#, ba# #) -> (# s'#, ByteArray ba# #)
+
 -- | It is ok to use ByteString withing ST, as long as underlying pointer is never mutated
 -- or returned from the supplied action.
 withPtrByteStringST :: BS.ByteString -> (Ptr a -> ST s b) -> ST s b
