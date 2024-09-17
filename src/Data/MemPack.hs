@@ -117,7 +117,6 @@ instance MonadState Int (Unpack b) where
   state = Unpack . const . state
   {-# INLINE state #-}
 
-
 instance Alternative (Unpack b) where
   empty = Unpack $ \_ -> lift empty
   Unpack r1 <|> Unpack r2 =
@@ -273,9 +272,17 @@ instance MemPack a => MemPack [a] where
   {-# INLINE unsafePackInto #-}
   unpackBuffer = do
     Length n <- unpackBuffer
-    Unpack $ \buf ->
-      replicateM n (runUnpack unpackBuffer buf)
+    replicateTailM n unpackBuffer
   {-# INLINE unpackBuffer #-}
+
+-- | Tail recursive version of `replicateM`
+replicateTailM :: Monad m => Int -> m a -> m [a]
+replicateTailM n f = go n []
+  where
+    go i !acc
+      | i <= 0 = pure $ reverse acc
+      | otherwise = f >>= \x -> go (i - 1) (x : acc)
+{-# INLINE replicateTailM #-}
 
 instance MemPack ByteArray where
   packedByteCount ba =
