@@ -53,6 +53,7 @@ module Data.MemPack (
   packTagM,
   unpackTagM,
   unknownTagM,
+  packedTagByteCount,
 
   -- * Internal utilities
   replicateTailM,
@@ -66,25 +67,24 @@ module Data.MemPack (
 
 #include "MachDeps.h"
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Reader
-import Control.Monad.ST
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Fail
-import Data.Array.Byte
+import Control.Applicative (Alternative (..))
+import Control.Monad (join, unless, when)
+import qualified Control.Monad.Fail as F
+import Control.Monad.Reader (MonadReader (..), lift)
+import Control.Monad.State.Strict (MonadState (..), StateT (..), execStateT)
+import Control.Monad.Trans.Fail (Fail, FailT (..), errorFail, failT, runFailAgg)
+import Data.Array.Byte (ByteArray (..), MutableByteArray (..))
 import Data.Bifunctor (first)
-import Data.Bits
+import Data.Bits (Bits (..), FiniteBits (..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
-import Data.Proxy
 import Data.Semigroup (Sum (..))
 import Data.Typeable
 import GHC.Exts
-import GHC.ST
-import GHC.Stack
+import GHC.ST (ST (..), runST)
+import GHC.Stack (HasCallStack)
 import GHC.Word
 import Numeric (showHex)
 
@@ -143,8 +143,8 @@ instance Monad (Unpack b) where
   Unpack m1 >>= p =
     Unpack $ \buf -> m1 buf >>= \res -> runUnpack (p res) buf
   {-# INLINE (>>=) #-}
-instance MonadFail (Unpack b) where
-  fail = Unpack . const . fail
+instance F.MonadFail (Unpack b) where
+  fail = Unpack . const . F.fail
 instance MonadReader b (Unpack b) where
   ask = Unpack pure
   {-# INLINE ask #-}
@@ -412,14 +412,23 @@ guardAdvanceUnpack n@(I# n#) = do
       _ -> (failOutOfBytes i, i)
 {-# INLINE guardAdvanceUnpack #-}
 
+-- | Serialize a type into an unpinned `ByteArray`
+--
+-- ====__Examples__
+--
+-- >>> :set -XTypeApplications
+-- >>> unpack @[Int] $ pack ([1,2,3,4,5] :: [Int])
+-- Right [1,2,3,4,5]
 pack :: forall a. (MemPack a, HasCallStack) => a -> ByteArray
 pack = packByteArray False
 {-# INLINE pack #-}
 
+-- | Serialize a type into a pinned `ByteString`
 packByteString :: forall a. (MemPack a, HasCallStack) => a -> ByteString
 packByteString = pinnedByteArrayToByteString . packByteArray True
 {-# INLINE packByteString #-}
 
+-- | Serialize a type into an unpinned `ShortByteString`
 packShortByteString :: forall a. (MemPack a, HasCallStack) => a -> ShortByteString
 packShortByteString = byteArrayToShortByteString . pack
 {-# INLINE packShortByteString #-}
@@ -491,8 +500,8 @@ unpackFail b = do
 {-# INLINEABLE unpackFail #-}
 
 -- | Same as `unpackFail` except fails in any `MonadFail`, instead of `Fail`.
-unpackMonadFail :: forall a b m. (MemPack a, Buffer b, MonadFail m) => b -> m a
-unpackMonadFail = either (fail . show) pure . unpack
+unpackMonadFail :: forall a b m. (MemPack a, Buffer b, F.MonadFail m) => b -> m a
+unpackMonadFail = either (F.fail . show) pure . unpack
 {-# INLINE unpackMonadFail #-}
 
 -- | Same as `unpack` except throws a runtime exception upon a failure
@@ -635,11 +644,11 @@ unpack7BitVarLenLast ::
   t ->
   Unpack b t
 unpack7BitVarLenLast mask firstByte acc = do
-  res <- unpack7BitVarLen (\_ _ -> fail "Too many bytes.") firstByte acc
+  res <- unpack7BitVarLen (\_ _ -> F.fail "Too many bytes.") firstByte acc
   -- Only while decoding the last 7bits we check if there was too many
   -- bits supplied at the beginning.
   unless (firstByte .&. mask == 0b_1000_0000) $
-    fail $
+    F.fail $
       "Unexpected bits for "
         ++ typeName @t
         ++ " were set in the first byte of 'VarLen': 0x" <> showHex firstByte ""
@@ -657,24 +666,35 @@ instance MemPack Length where
   {-# INLINE packM #-}
   unpackM = do
     VarLen (w :: Word) <- unpackM
-    when (testBit w (finiteBitSize w)) $ fail "Attempt to unpack negative length was detected"
+    when (testBit w (finiteBitSize w)) $ F.fail "Attempt to unpack negative length was detected"
     pure $ Length $ fromIntegral @Word @Int w
   {-# INLINE unpackM #-}
 
 newtype Tag = Tag {unTag :: Word8}
-  deriving (Eq, Show, Num, MemPack)
+  deriving (Eq, Ord, Show, Num)
+
+-- Manually defined instance, since ghc-8.6 has issues with deriving MemPack
+instance MemPack Tag where
+  packedByteCount _ = packedTagByteCount
+  {-# INLINE packedByteCount #-}
+  unpackM = unpackTagM
+  {-# INLINE unpackM #-}
+  packM = packTagM
+  {-# INLINE packM #-}
+
+packedTagByteCount :: Int
+packedTagByteCount = 1
 
 unpackTagM :: Buffer b => Unpack b Tag
-unpackTagM = unpackM
+unpackTagM = Tag <$> unpackM
 {-# INLINE unpackTagM #-}
 
 packTagM :: Tag -> Pack s ()
-packTagM = packM
+packTagM = packM . unTag
 {-# INLINE packTagM #-}
 
-
-unknownTagM :: MonadFail m => Tag -> m a
-unknownTagM (Tag t) = fail $ "Unrecognized Tag: " ++ show t
+unknownTagM :: F.MonadFail m => Tag -> m a
+unknownTagM (Tag t) = F.fail $ "Unrecognized Tag: " ++ show t
 
 lift_# :: (State# s -> State# s) -> Pack s ()
 lift_# f = Pack $ \_ -> lift $ st_ f
