@@ -54,12 +54,12 @@ instance MemPack Backtrack where
       IntCase i -> packedByteCount i
       Word16Case i -> packedByteCount i
   packM = \case
-    IntCase i -> packM (0 :: Word8) >> packM i
-    Word16Case i -> packM (1 :: Word8) >> packM i
+    IntCase i -> packM (Tag 0) >> packM i
+    Word16Case i -> packM (Tag 1) >> packM i
   unpackM =
     (IntCase <$> unpackCase 0) <|> (Word16Case <$> unpackCase 1)
     where
-      unpackCase :: (Buffer b, MemPack a) => Word8 -> Unpack b a
+      unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack b a
       unpackCase t = do
         t' <- unpackM
         unless (t == t') $ fail "Tag mismatch"

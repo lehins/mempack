@@ -38,6 +38,7 @@ module Data.MemPack (
   -- * Unpacking
   unpack,
   unpackFail,
+  unpackMonadFail,
   unpackError,
   unpackLeftOver,
 
@@ -48,6 +49,10 @@ module Data.MemPack (
   -- * Helper packers
   VarLen (..),
   Length (..),
+  Tag (..),
+  packTagM,
+  unpackTagM,
+  unknownTagM,
 
   -- * Internal utilities
   replicateTailM,
@@ -485,6 +490,11 @@ unpackFail b = do
   pure a
 {-# INLINEABLE unpackFail #-}
 
+-- | Same as `unpackFail` except fails in any `MonadFail`, instead of `Fail`.
+unpackMonadFail :: forall a b m. (MemPack a, Buffer b, MonadFail m) => b -> m a
+unpackMonadFail = either (fail . show) pure . unpack
+{-# INLINE unpackMonadFail #-}
+
 -- | Same as `unpack` except throws a runtime exception upon a failure
 unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
@@ -650,6 +660,21 @@ instance MemPack Length where
     when (testBit w (finiteBitSize w)) $ fail "Attempt to unpack negative length was detected"
     pure $ Length $ fromIntegral @Word @Int w
   {-# INLINE unpackM #-}
+
+newtype Tag = Tag {unTag :: Word8}
+  deriving (Eq, Show, Num, MemPack)
+
+unpackTagM :: Buffer b => Unpack b Tag
+unpackTagM = unpackM
+{-# INLINE unpackTagM #-}
+
+packTagM :: Tag -> Pack s ()
+packTagM = packM
+{-# INLINE packTagM #-}
+
+
+unknownTagM :: MonadFail m => Tag -> m a
+unknownTagM (Tag t) = fail $ "Unrecognized Tag: " ++ show t
 
 lift_# :: (State# s -> State# s) -> Pack s ()
 lift_# f = Pack $ \_ -> lift $ st_ f
