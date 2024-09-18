@@ -1,4 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -9,12 +11,11 @@
 module Test.MemPackSpec (spec) where
 
 import Control.Applicative ((<|>))
-import Control.Monad
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Fail
-import Data.Array.Byte (ByteArray (..))
+import Control.Monad hiding (fail)
+import qualified Control.Monad.Fail as F
+import Data.Array.Byte (ByteArray)
 import Data.ByteString (ByteString)
-import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
+import Data.ByteString.Short (ShortByteString)
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
@@ -24,7 +25,18 @@ import Test.Common
 
 -- | Generate extrema around boundaries
 newtype E a = E {unE :: a}
-  deriving (Eq, Show, MemPack)
+  deriving (Eq, Show)
+#if __GLASGOW_HASKELL__ >= 808
+  -- We also want to test GND for compiler versions that can handle it
+  deriving newtype MemPack
+#else
+-- Manually defined instance, since ghc-8.6 has issues with deriving MemPack
+instance MemPack a => MemPack (E a) where
+  typeName = typeName @a
+  packedByteCount = packedByteCount . unE
+  unpackM = E <$> unpackM
+  packM = packM . unE
+#endif
 
 instance (Arbitrary a, Bounded a, Num a, Random a) => Arbitrary (E a) where
   arbitrary =
@@ -62,7 +74,7 @@ instance MemPack Backtrack where
       unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack b a
       unpackCase t = do
         t' <- unpackM
-        unless (t == t') $ fail "Tag mismatch"
+        unless (t == t') $ F.fail "Tag mismatch"
         unpackM
 
 expectRoundTrip :: forall a. (MemPack a, Eq a, Show a) => a -> Expectation

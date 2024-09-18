@@ -1,0 +1,190 @@
+name: CI
+
+on:
+  push:
+    branches: [ "master", "release/**" ]
+  pull_request:
+    branches: [ "**" ]
+  schedule:
+    - cron: "0 5 * * 5"
+
+defaults: { run: { shell: bash } }
+
+# Cancel running workflows when a new workflow on the same PR or branch is started,
+# but put scheduled workflows into their own group
+concurrency:
+  group: ${{
+    format('{0}-{1}{2}',
+      github.workflow,
+      github.event.pull_request.number || github.ref,
+      github.event_name == 'schedule' && '-scheduled' || '')}}
+  cancel-in-progress: true
+
+jobs:
+  test-with-stack:
+    name: Test with Stack
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        resolver: [lts-14, lts-16, lts-18, lts-19, lts-20, lts-21, lts-22, nightly]
+        include:
+          - resolver: lts-14
+            ghc: 8.6.5
+          - resolver: lts-16
+            ghc: 8.8.4
+          - resolver: lts-18
+            ghc: 8.10.7
+          - resolver: lts-19
+            ghc: 9.0.2
+          - resolver: lts-20
+            ghc: 9.2.8
+          - resolver: lts-21
+            ghc: 9.4.8
+            stack-yaml: stack-coveralls.yaml
+          - resolver: lts-22
+            ghc: 9.6.6
+          - resolver: nightly
+            ghc: 9.8.2
+            stack-yaml: stack.yaml
+        exclude:
+          # Newer MacOS does not support older GHC:
+          - resolver: lts-14
+            os: macOS-latest
+          - resolver: lts-16
+            os: macOS-latest
+          - resolver: lts-18
+            os: macOS-latest
+          - resolver: lts-19
+            os: macOS-latest
+
+    env:
+      STACK_YAML: ${{ matrix.stack-yaml || matrix.ghc != '' && format('stack.ghc-{0}.yaml', matrix.ghc) || 'stack.yaml' }}
+      STACK_ARGS: '--resolver ${{ matrix.resolver }} --system-ghc'
+      cache-version: v0 # bump up this version to invalidate currently stored cache
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: haskell-actions/setup@v2
+      id: setup-haskell-cabal
+      name: Setup Haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        enable-stack: true
+        stack-version: 'latest'
+        cabal-version: 'latest'
+
+    - name: Cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.stack-root }}
+          .stack-work
+        key: ${{ runner.os }}-${{ matrix.resolver }}-${{ env.cache-version }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.resolver }}-${{ env.cache-version }}
+    - name: Windows Cache
+      id: cache-windows
+      uses: actions/cache@v4
+      if: matrix.os == 'windows-latest'
+      with:
+        path: |
+          C:\\Users\\RUNNER~1\\AppData\\Local\\Programs\\stack
+        key: ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
+    - name: Reset modtime
+      run: |
+        set -ex
+        curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
+        runhaskell -- git-modtime.hs -f .stack-work-root/tree-contents.txt
+    - name: Build
+      run: |
+        set -ex
+        stack $STACK_ARGS test --no-run-tests --haddock --no-haddock-deps
+    - name: Test
+      env:
+        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+      run: |
+        set -ex
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-21" ] && [ -n "${COVERALLS_REPO_TOKEN}" ]; then
+          stack $STACK_ARGS test --coverage
+          stack $STACK_ARGS hpc report --all
+          curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.7.0/shc-Linux-X64.tar.bz2 | tar xj shc
+          ./shc --repo-token="$COVERALLS_REPO_TOKEN" --partial-coverage --fetch-coverage combined custom
+        else
+          stack $STACK_ARGS test
+        fi
+
+  test-with-cabal:
+    name: Test with Cabal
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "8.6.5" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "8.8.4" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "8.10.7" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.0.2" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.2.8" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.4.8" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.6.6" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.8.2" }
+          - { cabal: "3.10", os: ubuntu-latest, ghc: "9.10.1" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.0.2" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.2.8" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.4.8" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.6.6" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.8.2" }
+          - { cabal: "3.10", os: windows-latest, ghc: "9.10.1" }
+          - { cabal: "3.10", os: macOS-13, ghc: "9.0.2" }
+          - { cabal: "3.10", os: macOS-latest, ghc: "9.2.8" }
+          - { cabal: "3.10", os: macOS-latest, ghc: "9.4.8" }
+          - { cabal: "3.10", os: macOS-latest, ghc: "9.6.6" }
+          - { cabal: "3.10", os: macOS-latest, ghc: "9.8.2" }
+          - { cabal: "3.10", os: macOS-latest, ghc: "9.10.1" }
+
+    env:
+      cache-version: v0 # bump up this version to invalidate currently stored cache
+    steps:
+    - uses: actions/checkout@v4
+    - uses: haskell-actions/setup@v2
+      id: setup-haskell-cabal
+      name: Setup Haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+
+    - name: Cache Cabal Store
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+          dist-newstyle
+        key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
+        restore-keys: |
+          cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
+    - name: Build
+      run: |
+        set -ex
+        cabal configure --haddock-all --enable-tests
+        cabal build all --write-ghc-environment-files=always
+    - name: Test
+      run: |
+        set -ex
+        cabal test all
+    - name: Doctest
+      # older ghc versions do not like some haddock examples and linker on MacOS-13 complains too
+      if: matrix.ghc != '8.6.5' && matrix.ghc != '8.8.4' && matrix.os != 'macOS-13'
+      run: |
+        set -ex
+        cabal install doctest --ignore-project --overwrite-policy=always
+        cabal repl --with-compiler=doctest --repl-options='-w -Wdefault'
+    - name: Check Cabal Files
+      run: |
+        set -ex
+        cabal -vnormal check
