@@ -178,7 +178,9 @@ jobs:
         set -ex
         cabal test all
     - name: Doctest
-      # older ghc versions do not like some haddock examples and linker on MacOS-13 complains too
+      # older ghc versions do not like some haddock examples
+      # linker on MacOS-13 complains too
+      # windows as always results in non-deterministic nonsense, so it will likely get disabled soon too.
       if: contains(fromJSON('["8.6.5", "8.8.4", "8.10.7", "9.0.2"]'), matrix.ghc) != true && matrix.os != 'macOS-13'
       run: |
         set -ex

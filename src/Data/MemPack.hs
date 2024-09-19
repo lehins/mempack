@@ -231,6 +231,60 @@ class MemPack a where
   -- happen. Violation of these rules will lead to segfaults.
   unpackM :: Buffer b => Unpack b a
 
+instance MemPack () where
+  packedByteCount _ = 0
+  {-# INLINE packedByteCount #-}
+  packM _ = pure ()
+  {-# INLINE packM #-}
+  unpackM = pure ()
+  {-# INLINE unpackM #-}
+
+instance MemPack Bool where
+  packedByteCount _ = packedTagByteCount
+  {-# INLINE packedByteCount #-}
+  packM x = packTagM $ if x then 1 else 0
+  {-# INLINE packM #-}
+  unpackM =
+    unpackTagM >>= \case
+      0 -> pure False
+      1 -> pure True
+      n -> F.fail $ "Invalid value detected for Bool: " ++ show n
+  {-# INLINE unpackM #-}
+
+instance MemPack a => MemPack (Maybe a) where
+  typeName = "Maybe " ++ typeName @a
+  packedByteCount = \case
+    Nothing -> packedTagByteCount
+    Just a -> packedTagByteCount + packedByteCount a
+  {-# INLINE packedByteCount #-}
+  packM = \case
+    Nothing -> packTagM 0
+    Just a -> packTagM 1 >> packM a
+  {-# INLINE packM #-}
+  unpackM =
+    unpackTagM >>= \case
+      0 -> pure Nothing
+      1 -> Just <$> unpackM
+      n -> unknownTagM @(Maybe a) n
+  {-# INLINE unpackM #-}
+
+instance (MemPack a, MemPack b) => MemPack (Either a b) where
+  typeName = "Either " ++ typeName @a ++ " " ++ typeName @b
+  packedByteCount = \case
+    Left a -> packedTagByteCount + packedByteCount a
+    Right b -> packedTagByteCount + packedByteCount b
+  {-# INLINE packedByteCount #-}
+  packM = \case
+    Left a -> packTagM 0 >> packM a
+    Right b -> packTagM 1 >> packM b
+  {-# INLINE packM #-}
+  unpackM =
+    unpackTagM >>= \case
+      0 -> Left <$> unpackM
+      1 -> Right <$> unpackM
+      n -> unknownTagM @(Either a b) n
+  {-# INLINE unpackM #-}
+
 instance MemPack Char where
   packedByteCount _ = SIZEOF_HSCHAR
   {-# INLINE packedByteCount #-}
@@ -532,7 +586,7 @@ instance MemPack Integer where
         2 -> do
           ByteArray ba# <- unpackM
           pure $ IN ba#
-        t -> unknownTagM t
+        t -> unknownTagM @Integer t
     unless (integerCheck i) $ F.fail $ "Invalid Integer decoded " ++ showInteger i
     pure i
     where
@@ -561,7 +615,7 @@ instance MemPack Natural where
         1 -> do
           ByteArray ba# <- unpackM
           pure $ NB ba#
-        t -> unknownTagM t
+        t -> unknownTagM @Natural t
     unless (naturalCheck n) $ F.fail $ "Invalid Natural decoded " ++ showNatural n
     pure n
     where
@@ -596,7 +650,7 @@ instance MemPack Integer where
         2 -> do
           ByteArray ba# <- unpackM
           pure $ Jn# (BN# ba#)
-        t -> unknownTagM t
+        t -> unknownTagM @Integer t
     unless (isTrue# (isValidInteger# i)) $ F.fail $ "Invalid Integer decoded " ++ showInteger i
     pure i
     where
@@ -625,7 +679,7 @@ instance MemPack Natural where
         1 -> do
           ByteArray ba# <- unpackM
           pure $ NatJ# (BN# ba#)
-        t -> unknownTagM t
+        t -> unknownTagM @Natural t
     unless (isValidNatural n) $ F.fail $ "Invalid Natural decoded " ++ showNatural n
     pure n
     where
@@ -1204,8 +1258,8 @@ packTagM :: Tag -> Pack s ()
 packTagM = packM . unTag
 {-# INLINE packTagM #-}
 
-unknownTagM :: F.MonadFail m => Tag -> m a
-unknownTagM (Tag t) = F.fail $ "Unrecognized Tag: " ++ show t
+unknownTagM :: forall a m b. (MemPack a, F.MonadFail m) => Tag -> m b
+unknownTagM (Tag t) = F.fail $ "Unrecognized Tag: " ++ show t ++ " while decoding " ++ typeName @a
 
 lift_# :: (State# s -> State# s) -> Pack s ()
 lift_# f = Pack $ \_ -> lift $ st_ f

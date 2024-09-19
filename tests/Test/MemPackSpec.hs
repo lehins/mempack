@@ -196,10 +196,12 @@ memPackSpec =
 
 spec :: Spec
 spec = do
+  prop "RoundTrip" $ expectRoundTrip @()
   memPackSpec @(Ptr ())
   memPackSpec @(StablePtr ())
   memPackSpec @Float
   memPackSpec @Double
+  memPackSpec @Bool
   memPackSpec @(E Char)
   memPackSpec @(E Int)
   memPackSpec @(E Int8)
@@ -227,6 +229,8 @@ spec = do
   memPackSpec @(E Length)
   memPackSpec @(E Integer)
   memPackSpec @(E Natural)
+  memPackSpec @(Maybe String)
+  memPackSpec @(Either Float Double)
   memPackSpec @(Complex (E Int))
   memPackSpec @(Ratio (E Int))
   memPackSpec @ByteArray
