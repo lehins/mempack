@@ -918,6 +918,7 @@ instance MemPack ByteString where
   unpackM = pinnedByteArrayToByteString <$> unpackByteArray True
   {-# INLINE unpackM #-}
 
+-- | This is the implementation of `unpackM` for `ByteArray` and `ByteString`
 unpackByteArray :: Buffer b => Bool -> Unpack b ByteArray
 unpackByteArray isPinned = do
   Length len@(I# len#) <- unpackM
@@ -932,6 +933,8 @@ unpackByteArray isPinned = do
     freezeMutableByteArray mba
 {-# INLINE unpackByteArray #-}
 
+-- | Increment the offset counter of `Pack` monad by then number of `packedByteCount` and
+-- return the starting offset.
 packIncrement :: MemPack a => a -> Pack s Int
 packIncrement a =
   state $ \i ->
@@ -939,6 +942,9 @@ packIncrement a =
      in (i, n)
 {-# INLINE packIncrement #-}
 
+-- | Increment the offset counter of `Unpack` monad by the supplied number of
+-- bytes. Returns the original offset or fails with `RanOutOfBytesError` whenever there is
+-- not enough bytes in the `Buffer`.
 guardAdvanceUnpack :: Buffer b => Int -> Unpack b Int
 guardAdvanceUnpack n@(I# n#) = do
   buf <- ask
@@ -982,13 +988,26 @@ packShortByteString :: forall a. (MemPack a, HasCallStack) => a -> ShortByteStri
 packShortByteString = byteArrayToShortByteString . pack
 {-# INLINE packShortByteString #-}
 
-packByteArray :: forall a. (MemPack a, HasCallStack) => Bool -> a -> ByteArray
+-- | Same as `pack`, but allows controlling the pinnedness of allocated memory
+packByteArray ::
+  forall a.
+  (MemPack a, HasCallStack) =>
+  -- | Should the array be allocated in pinned memory?
+  Bool ->
+  a ->
+  ByteArray
 packByteArray isPinned a =
   runST $ packMutableByteArray isPinned a >>= freezeMutableByteArray
 {-# INLINE packByteArray #-}
 
+-- | Same as `packByteArray`, but produces a mutable array instead
 packMutableByteArray ::
-  forall a s. (MemPack a, HasCallStack) => Bool -> a -> ST s (MutableByteArray s)
+  forall a s.
+  (MemPack a, HasCallStack) =>
+  -- | Should the array be allocated in pinned memory?
+  Bool ->
+  a ->
+  ST s (MutableByteArray s)
 packMutableByteArray isPinned a = do
   let len = packedByteCount a
   mba <- newMutableByteArray isPinned len
@@ -1058,6 +1077,9 @@ unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
 {-# INLINE unpackError #-}
 
+-- | Variable length encoding for bounded types. This type of encoding will use less
+-- memory for small values, but for larger values it will consume more memory and will be
+-- slower during packing/unpacking.
 newtype VarLen a = VarLen {unVarLen :: a}
   deriving (Eq, Ord, Show, Bounded, Enum, Num, Real, Integral, Bits, FiniteBits)
 
