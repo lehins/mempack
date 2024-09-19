@@ -1249,6 +1249,7 @@ instance MemPack Tag where
 
 packedTagByteCount :: Int
 packedTagByteCount = SIZEOF_WORD8
+{-# INLINE packedTagByteCount #-}
 
 unpackTagM :: Buffer b => Unpack b Tag
 unpackTagM = Tag <$> unpackM
