@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -10,22 +12,31 @@
 
 module Test.MemPackSpec (spec) where
 
+import Numeric.Natural
 import Control.Applicative ((<|>))
 import Control.Monad hiding (fail)
 import qualified Control.Monad.Fail as F
 import Data.Array.Byte (ByteArray)
+import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString)
+import Data.Complex
+import Data.Either (isLeft)
+import Data.Function (fix)
+import Data.Int
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Ratio
 import Data.Word
+import Foreign.Ptr (IntPtr (..), Ptr, intPtrToPtr)
+import Foreign.StablePtr (StablePtr, castPtrToStablePtr, castStablePtrToPtr)
 import System.Random.Stateful
 import Test.Common
 
 -- | Generate extrema around boundaries
 newtype E a = E {unE :: a}
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Bounded, Integral)
 #if __GLASGOW_HASKELL__ >= 808
   -- We also want to test GND for compiler versions that can handle it
   deriving newtype MemPack
@@ -38,15 +49,74 @@ instance MemPack a => MemPack (E a) where
   packM = packM . unE
 #endif
 
-instance (Arbitrary a, Bounded a, Num a, Random a) => Arbitrary (E a) where
+instance Random Length
+
+deriving instance Random Tag
+
+instance Uniform Length where
+  uniformM = uniformEnumM
+instance UniformRange Length where
+  uniformRM = uniformEnumRM
+
+instance Arbitrary Length where
+  -- Fun fact: `abs minBound == minBound` for Int, so instead of abs we clear top most
+  arbitrary = Length . (\x -> x `clearBit` (finiteBitSize x - 1)) <$> arbitrary
+
+deriving instance Arbitrary Tag
+
+instance Arbitrary (Ptr a) where
+  arbitrary = intPtrToPtr . IntPtr . unE <$> arbitrary
+
+instance Arbitrary (StablePtr a) where
+  arbitrary = castPtrToStablePtr <$> arbitrary
+
+instance Show (StablePtr a) where
+  show = show . castStablePtrToPtr
+
+instance (Arbitrary a, Bounded a, Enum a, Random a) => Arbitrary (E a) where
   arbitrary =
     E
       <$> frequency
         [ (25, arbitrary)
         , (25, chooseAny)
-        , (25, choose (minBound, minBound + 100))
-        , (25, choose (maxBound, maxBound - 100))
+        , (25, choose (minBound, iter succ minBound 100)) -- add a 100
+        , (25, choose (iter pred maxBound 100, maxBound)) -- subtract a 100
         ]
+    where
+      iter :: (a -> a) -> a -> Int -> a
+      iter f = fix (\loop c i -> if i <= 0 then c else loop (f c) (i - 1))
+
+instance {-# OVERLAPPING #-} Arbitrary (E Integer) where
+  arbitrary =
+    E
+      <$> frequency
+        [ (15, arbitrary)
+        , (25, chooseAny)
+        , (25, choose (fromIntegral (maxBound :: Int), fromIntegral (maxBound :: Word)))
+        , (25, choose (negate (fromIntegral (maxBound :: Word)), fromIntegral (minBound :: Int)))
+        , (5, fact <$> choose (21, 300))
+        , (5, negate . fact <$> choose (21, 300))
+        ]
+    where
+
+instance {-# OVERLAPPING #-} Arbitrary (E Natural) where
+  arbitrary =
+    E
+      <$> frequency
+        [ (15, fromInteger . getNonNegative <$> arbitrary)
+        , (25, uniformRM (0, fromIntegral (maxBound :: Word)) QC)
+        , (25, uniformRM (fromIntegral (maxBound :: Word), 2 * fromIntegral (maxBound :: Word)) QC)
+        , (5, fact . fromInteger <$> choose (21, 300))
+        ]
+
+
+-- factorial for generating some large numbers
+fact :: (Ord a, Num a) => a -> a
+fact = go 1
+  where
+    go !acc n
+      | n <= 1 = acc
+      | otherwise = go (acc * n) (n - 1)
 
 deriving instance Random a => Random (VarLen a)
 deriving instance Arbitrary a => Arbitrary (VarLen a)
@@ -126,7 +196,16 @@ memPackSpec =
 
 spec :: Spec
 spec = do
+  memPackSpec @(Ptr ())
+  memPackSpec @(StablePtr ())
+  memPackSpec @Float
+  memPackSpec @Double
+  memPackSpec @(E Char)
   memPackSpec @(E Int)
+  memPackSpec @(E Int8)
+  memPackSpec @(E Int16)
+  memPackSpec @(E Int32)
+  memPackSpec @(E Int64)
   memPackSpec @(E Word)
   memPackSpec @(E Word8)
   memPackSpec @(E Word16)
@@ -135,11 +214,26 @@ spec = do
   memPackSpec @[E Int]
   memPackSpec @[E Word]
   memPackSpec @(E Int, E Word)
+  memPackSpec @(E Int8, E Word8, E Char)
+  memPackSpec @(E Int16, E Word16, Float, Double)
+  memPackSpec @(E Int32, E Word32, Float, Double, Ptr Char)
+  memPackSpec @(E Int64, E Word64, Length, VarLen Word, StablePtr Char, [VarLen Word32])
+  memPackSpec @(Tag, Int, Int8, Int16, Int32, Int64, Backtrack)
   memPackSpec @(E (VarLen Word))
   memPackSpec @(E (VarLen Word16))
   memPackSpec @(E (VarLen Word32))
   memPackSpec @(E (VarLen Word64))
+  memPackSpec @(E Tag)
+  memPackSpec @(E Length)
+  memPackSpec @(E Integer)
+  memPackSpec @(E Natural)
+  memPackSpec @(Complex (E Int))
+  memPackSpec @(Ratio (E Int))
   memPackSpec @ByteArray
   memPackSpec @ByteString
   memPackSpec @ShortByteString
   memPackSpec @Backtrack
+  prop "Out of bound char" $ forAll (choose (0x110000, maxBound :: Word32)) $ \w32 ->
+    unpack @Char (pack w32) `shouldSatisfy` isLeft
+  prop "Zero denominator" $ \x -> do
+    unpack @(Ratio Int8) (pack (x :: Int8, 0 :: Int8)) `shouldSatisfy` isLeft

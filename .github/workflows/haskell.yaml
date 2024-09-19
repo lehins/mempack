@@ -179,11 +179,11 @@ jobs:
         cabal test all
     - name: Doctest
       # older ghc versions do not like some haddock examples and linker on MacOS-13 complains too
-      if: matrix.ghc != '8.6.5' && matrix.ghc != '8.8.4' && matrix.os != 'macOS-13'
+      if: contains(fromJSON('["8.6.5", "8.8.4", "8.10.7", "9.0.2"]'), matrix.ghc) != true && matrix.os != 'macOS-13'
       run: |
         set -ex
         cabal install doctest --ignore-project --overwrite-policy=always
-        cabal repl --with-compiler=doctest --repl-options='-w -Wdefault'
+        cabal repl --build-depends=QuickCheck --with-compiler=doctest --repl-options='-w -Wdefault'
     - name: Check Cabal Files
       run: |
         set -ex
