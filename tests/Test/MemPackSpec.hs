@@ -12,7 +12,6 @@
 
 module Test.MemPackSpec (spec) where
 
-import Numeric.Natural
 import Control.Applicative ((<|>))
 import Control.Monad hiding (fail)
 import qualified Control.Monad.Fail as F
@@ -31,6 +30,7 @@ import Data.Ratio
 import Data.Word
 import Foreign.Ptr (IntPtr (..), Ptr, intPtrToPtr)
 import Foreign.StablePtr (StablePtr, castPtrToStablePtr, castStablePtrToPtr)
+import Numeric.Natural
 import System.Random.Stateful
 import Test.Common
 
@@ -108,7 +108,6 @@ instance {-# OVERLAPPING #-} Arbitrary (E Natural) where
         , (25, uniformRM (fromIntegral (maxBound :: Word), 2 * fromIntegral (maxBound :: Word)) QC)
         , (5, fact . fromInteger <$> choose (21, 300))
         ]
-
 
 -- factorial for generating some large numbers
 fact :: (Ord a, Num a) => a -> a
@@ -241,3 +240,7 @@ spec = do
     unpack @Char (pack w32) `shouldSatisfy` isLeft
   prop "Zero denominator" $ \x -> do
     unpack @(Ratio Int8) (pack (x :: Int8, 0 :: Int8)) `shouldSatisfy` isLeft
+  prop "Negative length" $ \(xs :: [Int16]) isPinned -> do
+    let len = packedByteCount (VarLen (maxBound :: Word)) + sum (map packedByteCount xs)
+        packerM = packM (VarLen (maxBound :: Word)) >> mapM_ packM xs
+    unpack @[Int] (packWithByteArray isPinned "[Int8]" len packerM) `shouldSatisfy` isLeft

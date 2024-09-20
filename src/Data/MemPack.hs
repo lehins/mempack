@@ -9,6 +9,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -27,10 +28,14 @@ module Data.MemPack (
 
   -- * Packing
   pack,
-  packByteArray,
   packByteString,
   packShortByteString,
+
+  -- ** Generalized
+  packByteArray,
+  packWithByteArray,
   packMutableByteArray,
+  packWithMutableByteArray,
 
   -- ** Helpers
   packIncrement,
@@ -997,8 +1002,25 @@ packByteArray ::
   a ->
   ByteArray
 packByteArray isPinned a =
-  runST $ packMutableByteArray isPinned a >>= freezeMutableByteArray
+  packWithByteArray isPinned (typeName @a) (packedByteCount a) (packM a)
 {-# INLINE packByteArray #-}
+
+-- | Allocate a `MutableByteArray` and run the supplied `Pack` action on it. Freezes the
+-- allocated `MutableByteArray` at the end yielding the immutable `ByteArray` with
+-- serialization packed into it.
+packWithByteArray ::
+  HasCallStack =>
+  -- | Should the array be allocated in pinned memory?
+  Bool ->
+  -- | Name of the type that is being serialized. Used for error reporting
+  String ->
+  -- | Size of the array to be allocated
+  Int ->
+  (forall s. Pack s ()) ->
+  ByteArray
+packWithByteArray isPinned name len packerM =
+  runST $ packWithMutableByteArray isPinned name len packerM >>= freezeMutableByteArray
+{-# INLINE packWithByteArray #-}
 
 -- | Same as `packByteArray`, but produces a mutable array instead
 packMutableByteArray ::
@@ -1008,25 +1030,41 @@ packMutableByteArray ::
   Bool ->
   a ->
   ST s (MutableByteArray s)
-packMutableByteArray isPinned a = do
-  let len = packedByteCount a
+packMutableByteArray isPinned a =
+  packWithMutableByteArray isPinned (typeName @a) (packedByteCount a) (packM a)
+{-# INLINE packMutableByteArray #-}
+
+-- | Allocate a `MutableByteArray` and run the supplied `Pack` action on it.
+packWithMutableByteArray ::
+  forall s.
+  HasCallStack =>
+  -- | Should the array be allocated in pinned memory?
+  Bool ->
+  -- | Name of the type that is being serialized. Used for error reporting
+  String ->
+  -- | Size of the mutable array to be allocated
+  Int ->
+  -- | Packing action to be executed on the mutable buffer
+  Pack s () ->
+  ST s (MutableByteArray s)
+packWithMutableByteArray isPinned name len packerM = do
   mba <- newMutableByteArray isPinned len
-  filledBytes <- execStateT (runPack (packM a) mba) 0
+  filledBytes <- execStateT (runPack packerM mba) 0
   when (filledBytes /= len) $
     if (filledBytes < len)
       then
         error $
           "Some bug in 'packM' was detected. Buffer of length " <> showBytes len
-            ++ " was not fully filled while packing " <> typeName @a
+            ++ " was not fully filled while packing " <> name
             ++ ". Unfilled " <> showBytes (len - filledBytes) <> "."
       else
         -- This is a critical error, therefore we are not gracefully failing this unpacking
         error $
-          "Potential buffer overflow. Some bug in 'packM' was detected while packing " <> typeName @a
+          "Potential buffer overflow. Some bug in 'packM' was detected while packing " <> name
             ++ ". Filled " <> showBytes (filledBytes - len) <> " more than allowed into a buffer of length "
             ++ show len
   pure mba
-{-# INLINEABLE packMutableByteArray #-}
+{-# INLINE packWithMutableByteArray #-}
 
 -- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides the
 -- unpacked type it also returns an index into a buffer where unpacked has stopped.
@@ -1250,7 +1288,7 @@ instance MemPack Length where
   {-# INLINE packM #-}
   unpackM = do
     VarLen (w :: Word) <- unpackM
-    when (testBit w (finiteBitSize w)) $
+    when (testBit w (finiteBitSize w - 1)) $
       F.fail $
         "Attempt to unpack negative length was detected: " ++ show (fromIntegral @Word @Int w)
     pure $ Length $ fromIntegral @Word @Int w
