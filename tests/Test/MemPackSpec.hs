@@ -240,7 +240,7 @@ spec = do
     unpack @Char (pack w32) `shouldSatisfy` isLeft
   prop "Zero denominator" $ \x -> do
     unpack @(Ratio Int8) (pack (x :: Int8, 0 :: Int8)) `shouldSatisfy` isLeft
-  prop "Negative length" $ \(xs :: [Int16]) isPinned -> do
+  prop "Negative length" $ \(xs :: [Int]) isPinned -> do
     let len = packedByteCount (VarLen (maxBound :: Word)) + sum (map packedByteCount xs)
         packerM = packM (VarLen (maxBound :: Word)) >> mapM_ packM xs
-    unpack @[Int] (packWithByteArray isPinned "[Int8]" len packerM) `shouldSatisfy` isLeft
+    unpack @[Int] (packWithByteArray isPinned "[Int]" len packerM) `shouldSatisfy` isLeft
