@@ -1288,7 +1288,7 @@ instance MemPack Length where
   {-# INLINE packM #-}
   unpackM = do
     VarLen (w :: Word) <- unpackM
-    when (testBit w (finiteBitSize w)) $
+    when (testBit w (finiteBitSize w - 1)) $
       F.fail $
         "Attempt to unpack negative length was detected: " ++ show (fromIntegral @Word @Int w)
     pure $ Length $ fromIntegral @Word @Int w
