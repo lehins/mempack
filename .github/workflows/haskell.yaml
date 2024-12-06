@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   test-with-stack:
-    name: Test with Stack
+    name: Stack
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -119,7 +119,7 @@ jobs:
         fi
 
   test-with-cabal:
-    name: Test with Cabal
+    name: Cabal
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
