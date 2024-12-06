@@ -81,7 +81,7 @@ benchmark bench
                        -O2
                        -with-rtsopts=-N
   build-depends:       base
-                     , avro
+                     , avro >= 0.5.1
                      , binary
                      , bytestring
                      , cereal
