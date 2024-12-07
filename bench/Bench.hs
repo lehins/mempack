@@ -4,6 +4,7 @@ module Main where
 
 import qualified Codec.Serialise as Serialise
 import Criterion.Main
+import qualified Data.Avro as Avro
 import qualified Data.Binary as Binary
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.ByteString.Short (fromShort, toShort)
@@ -26,6 +27,7 @@ main = do
               , bench "Cereal" $ nf Cereal.encode xs
               , bench "Binary" $ nf (toStrict . Binary.encode) xs
               , bench "Serialise" $ nf (toStrict . Serialise.serialise) xs
+              , bench "Avro" $ nf (toStrict . Avro.encodeValue) xs
               ]
           ]
     , env (pure [1 :: Int .. 100000]) $ \xs ->
@@ -40,6 +42,8 @@ main = do
               , bench "Binary" $ nf (Binary.decode @[Int] . fromStrict . toStrict . Binary.encode) xs
               , bench "Serialise" $
                   nf (Serialise.deserialiseOrFail @[Int] . fromStrict . toStrict . Serialise.serialise) xs
+              , bench "Avro" $
+                  nf (Avro.decodeValue @[Int] . fromStrict . toStrict . Avro.encodeValue) xs
               ]
           , bgroup
               "ShortByteString"
