@@ -10,6 +10,7 @@ import Data.Array.Byte (ByteArray (..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import Data.MemPack.Buffer (byteArrayFromShortByteString)
+import qualified Data.Text as T
 import System.Random.Stateful
 import Test.Hspec as X
 import Test.Hspec.QuickCheck as X
@@ -35,6 +36,9 @@ instance Arbitrary ByteString where
 
 instance Arbitrary SBS.ShortByteString where
   arbitrary = qcShortByteString . getNonNegative =<< arbitrary
+
+instance Arbitrary T.Text where
+  arbitrary = T.pack <$> arbitrary
 
 qcByteArray :: Int -> Gen ByteArray
 qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n

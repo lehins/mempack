@@ -91,6 +91,11 @@ import Data.MemPack.Buffer
 import Data.MemPack.Error
 import Data.Ratio
 import Data.Semigroup (Sum (..))
+#if MIN_VERSION_text(2,0,0)
+import qualified Data.Text.Array as T
+#endif
+import Data.Text.Internal (Text (..))
+import qualified Data.Text.Encoding as T
 import Data.Typeable
 import Data.Void (Void, absurd)
 import GHC.Exts
@@ -927,6 +932,28 @@ instance MemPack ByteString where
       st_ (copyAddrToByteArray# addr# mba# curPos# len#)
   {-# INLINE packM #-}
   unpackM = pinnedByteArrayToByteString <$> unpackByteArray True
+  {-# INLINE unpackM #-}
+
+instance MemPack Text where
+#if MIN_VERSION_text(2,0,0)
+  packedByteCount (Text _ _ byteCount) = packedByteCount (Length byteCount) + byteCount
+  packM (Text (T.ByteArray ba#) (I# offset#) len@(I# len#)) = do
+    packM (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    MutableByteArray mba# <- ask
+    lift_# (copyByteArray# ba# offset# mba# curPos# len#)
+#else
+  -- FIXME: This is very inefficient and shall be fixed in the next major version
+  packedByteCount = packedByteCount . T.encodeUtf8
+  packM = packM . T.encodeUtf8
+#endif
+  {-# INLINE packedByteCount #-}
+  {-# INLINE packM #-}
+  unpackM = do
+    bs <- unpackM
+    case T.decodeUtf8' bs of
+      Right txt -> pure txt
+      Left exc -> F.fail $ show exc
   {-# INLINE unpackM #-}
 
 -- | This is the implementation of `unpackM` for `ByteArray` and `ByteString`

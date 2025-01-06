@@ -60,6 +60,7 @@ test-suite tests
                     , mtl
                     , QuickCheck
                     , random >=1.2.1
+                    , text
   if !impl(ghc >= 9.4)
     build-depends:     data-array-byte
 
