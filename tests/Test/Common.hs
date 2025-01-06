@@ -9,6 +9,7 @@ module Test.Common (
 import Data.Array.Byte (ByteArray (..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
+import qualified Data.ByteString.Lazy as BSL
 import Data.MemPack.Buffer (byteArrayFromShortByteString)
 import qualified Data.Text as T
 import System.Random.Stateful
@@ -36,6 +37,9 @@ instance Arbitrary ByteString where
 
 instance Arbitrary SBS.ShortByteString where
   arbitrary = qcShortByteString . getNonNegative =<< arbitrary
+
+instance Arbitrary BSL.ByteString where
+  arbitrary = BSL.fromChunks <$> arbitrary
 
 instance Arbitrary T.Text where
   arbitrary = T.pack <$> arbitrary

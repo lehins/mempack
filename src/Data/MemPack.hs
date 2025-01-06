@@ -83,6 +83,8 @@ import Data.Array.Byte (ByteArray (..), MutableByteArray (..))
 import Data.Bifunctor (first)
 import Data.Bits (Bits (..), FiniteBits (..))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Internal as BSL
 import Data.ByteString.Short (ShortByteString)
 import Data.Char (ord)
 import Data.Complex (Complex (..))
@@ -94,8 +96,8 @@ import Data.Semigroup (Sum (..))
 #if MIN_VERSION_text(2,0,0)
 import qualified Data.Text.Array as T
 #endif
-import Data.Text.Internal (Text (..))
 import qualified Data.Text.Encoding as T
+import Data.Text.Internal (Text (..))
 import Data.Typeable
 import Data.Void (Void, absurd)
 import GHC.Exts
@@ -924,14 +926,47 @@ instance MemPack ByteString where
     let len = bufferByteCount ba
      in packedByteCount (Length len) + len
   {-# INLINE packedByteCount #-}
-  packM bs = do
-    let !len@(I# len#) = bufferByteCount bs
-    packM (Length len)
-    I# curPos# <- state $ \i -> (i, i + len)
-    Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
-      st_ (copyAddrToByteArray# addr# mba# curPos# len#)
+  packM bs = packM (Length (bufferByteCount bs)) >> packByteStringM bs
   {-# INLINE packM #-}
   unpackM = pinnedByteArrayToByteString <$> unpackByteArray True
+  {-# INLINE unpackM #-}
+
+{- FOURMOLU_DISABLE -}
+instance MemPack BSL.ByteString where
+#if WORD_SIZE_IN_BITS == 32
+  packedByteCount bsl =
+    let len64 = BSL.length bsl
+        len = fromIntegral len64
+     in if len64 <= fromIntegral (maxBound :: Int)
+        then packedByteCount (Length len) + len
+        else error $ mconcat [ "Cannot pack more that '2 ^ 31 - 1' bytes on a 32bit architecture, "
+                             , "but tried to pack a lazy ByteString with "
+                             , show len64
+                             , " bytes"
+                             ]
+#elif WORD_SIZE_IN_BITS == 64
+  packedByteCount bsl =
+    let len = fromIntegral (BSL.length bsl)
+     in packedByteCount (Length len) + len
+#else
+#error "Only 32bit and 64bit systems are supported"
+#endif
+  {-# INLINE packedByteCount #-}
+  packM bsl = do
+    let !len = fromIntegral (BSL.length bsl)
+        go BSL.Empty = pure ()
+        go (BSL.Chunk bs rest) = packByteStringM bs >> go rest
+    packM (Length len)
+    go bsl
+  {-# INLINE packM #-}
+  unpackM = do
+    Length len <- unpackM
+    let c = BSL.defaultChunkSize
+        go n
+          | n == 0 = pure BSL.Empty
+          | n <= c = BSL.Chunk <$> unpackByteStringM n <*> pure BSL.Empty
+          | otherwise = BSL.Chunk <$> unpackByteStringM c <*> go (n - c)
+    go len
   {-# INLINE unpackM #-}
 
 instance MemPack Text where
@@ -955,11 +990,15 @@ instance MemPack Text where
       Right txt -> pure txt
       Left exc -> F.fail $ show exc
   {-# INLINE unpackM #-}
+{- FOURMOLU_ENABLE -}
 
 -- | This is the implementation of `unpackM` for `ByteArray` and `ByteString`
 unpackByteArray :: Buffer b => Bool -> Unpack b ByteArray
-unpackByteArray isPinned = do
-  Length len@(I# len#) <- unpackM
+unpackByteArray isPinned = unpackByteArrayLen isPinned . unLength =<< unpackM
+{-# INLINE unpackByteArray #-}
+
+unpackByteArrayLen :: Buffer b => Bool -> Int -> Unpack b ByteArray
+unpackByteArrayLen isPinned len@(I# len#) = do
   I# curPos# <- guardAdvanceUnpack len
   buf <- ask
   pure $! runST $ do
@@ -969,7 +1008,7 @@ unpackByteArray isPinned = do
       (\ba# -> st_ (copyByteArray# ba# curPos# mba# 0# len#))
       (\addr# -> st_ (copyAddrToByteArray# (addr# `plusAddr#` curPos#) mba# 0# len#))
     freezeMutableByteArray mba
-{-# INLINE unpackByteArray #-}
+{-# INLINE unpackByteArrayLen #-}
 
 -- | Increment the offset counter of `Pack` monad by then number of `packedByteCount` and
 -- return the starting offset.
@@ -1098,6 +1137,23 @@ packWithMutableByteArray isPinned name len packerM = do
             ++ show len
   pure mba
 {-# INLINE packWithMutableByteArray #-}
+
+-- | Helper function for packing a `ByteString` without its length being packed first.
+packByteStringM :: ByteString -> Pack s ()
+packByteStringM bs = do
+  let !len@(I# len#) = bufferByteCount bs
+  I# curPos# <- state $ \i -> (i, i + len)
+  Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
+    st_ (copyAddrToByteArray# addr# mba# curPos# len#)
+{-# INLINE packByteStringM #-}
+
+-- | Unpack a `ByteString` of a specified size.
+unpackByteStringM ::
+  Buffer b =>
+  -- | number of bytes to unpack
+  Int ->
+  Unpack b ByteString
+unpackByteStringM len = pinnedByteArrayToByteString <$> unpackByteArrayLen True len
 
 -- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides the
 -- unpacked type it also returns an index into a buffer where unpacked has stopped.

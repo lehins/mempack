@@ -19,6 +19,7 @@ import Data.Array.Byte (ByteArray)
 import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString)
+import qualified Data.ByteString.Lazy as BSL
 import Data.Complex
 import Data.Either (isLeft)
 import Data.Function (fix)
@@ -235,6 +236,7 @@ spec = do
   memPackSpec @(Ratio (E Int))
   memPackSpec @ByteArray
   memPackSpec @ByteString
+  memPackSpec @BSL.ByteString
   memPackSpec @ByteArray
   memPackSpec @Text
   memPackSpec @Backtrack
