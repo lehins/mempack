@@ -92,6 +92,7 @@ import Data.MemPack.Error
 import Data.Ratio
 import Data.Semigroup (Sum (..))
 import Data.Typeable
+import Data.Void (Void, absurd)
 import GHC.Exts
 import GHC.Int
 import GHC.ST (ST (..), runST)
@@ -243,6 +244,11 @@ instance MemPack () where
   {-# INLINE packM #-}
   unpackM = pure ()
   {-# INLINE unpackM #-}
+
+instance MemPack Void where
+  packedByteCount _ = 0
+  packM = absurd
+  unpackM = F.fail "Void is unpackable"
 
 instance MemPack Bool where
   packedByteCount _ = packedTagByteCount
