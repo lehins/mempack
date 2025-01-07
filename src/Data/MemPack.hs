@@ -250,7 +250,7 @@ class MemPack a where
 instance MemPack () where
   packedByteCount _ = 0
   {-# INLINE packedByteCount #-}
-  packM _ = pure ()
+  packM () = pure ()
   {-# INLINE packM #-}
   unpackM = pure ()
   {-# INLINE unpackM #-}
