@@ -51,6 +51,9 @@ module Data.MemPack (
   -- ** Helpers
   failUnpack,
   unpackByteArray,
+  unpackByteArrayLen,
+  packByteStringM,
+  unpackByteStringM,
 
   -- * Helper packers
   VarLen (..),
@@ -992,11 +995,16 @@ instance MemPack Text where
   {-# INLINE unpackM #-}
 {- FOURMOLU_ENABLE -}
 
--- | This is the implementation of `unpackM` for `ByteArray` and `ByteString`
+-- | This is the implementation of `unpackM` for `ByteArray`, `ByteString` and `ShortByteString`
 unpackByteArray :: Buffer b => Bool -> Unpack b ByteArray
 unpackByteArray isPinned = unpackByteArrayLen isPinned . unLength =<< unpackM
 {-# INLINE unpackByteArray #-}
 
+-- | Unpack a `ByteArray` with supplied number of bytes.
+--
+-- Similar to `unpackByteArray`, except it does not unpack a length.
+--
+-- @since 0.1.1
 unpackByteArrayLen :: Buffer b => Bool -> Int -> Unpack b ByteArray
 unpackByteArrayLen isPinned len@(I# len#) = do
   I# curPos# <- guardAdvanceUnpack len
@@ -1139,6 +1147,8 @@ packWithMutableByteArray isPinned name len packerM = do
 {-# INLINE packWithMutableByteArray #-}
 
 -- | Helper function for packing a `ByteString` without its length being packed first.
+--
+-- @since 0.1.1
 packByteStringM :: ByteString -> Pack s ()
 packByteStringM bs = do
   let !len@(I# len#) = bufferByteCount bs
@@ -1148,6 +1158,8 @@ packByteStringM bs = do
 {-# INLINE packByteStringM #-}
 
 -- | Unpack a `ByteString` of a specified size.
+--
+-- @since 0.1.1
 unpackByteStringM ::
   Buffer b =>
   -- | number of bytes to unpack

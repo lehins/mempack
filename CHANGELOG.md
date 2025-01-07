@@ -2,6 +2,7 @@
 
 ## 0.1.1.0
 
+* Add helpers `packByteStringM`, `unpackByteStringM` and `unpackByteArrayLen`
 * Add `MemPack` instance for lazy `ByteString`
 * Add `MemPack` instance for `Text`
 * Add `MemPack` instance for `Void`
