@@ -51,6 +51,9 @@ module Data.MemPack (
   -- ** Helpers
   failUnpack,
   unpackByteArray,
+  unpackByteArrayLen,
+  packByteStringM,
+  unpackByteStringM,
 
   -- * Helper packers
   VarLen (..),
@@ -83,6 +86,8 @@ import Data.Array.Byte (ByteArray (..), MutableByteArray (..))
 import Data.Bifunctor (first)
 import Data.Bits (Bits (..), FiniteBits (..))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Internal as BSL
 import Data.ByteString.Short (ShortByteString)
 import Data.Char (ord)
 import Data.Complex (Complex (..))
@@ -91,7 +96,13 @@ import Data.MemPack.Buffer
 import Data.MemPack.Error
 import Data.Ratio
 import Data.Semigroup (Sum (..))
+#if MIN_VERSION_text(2,0,0)
+import qualified Data.Text.Array as T
+#endif
+import qualified Data.Text.Encoding as T
+import Data.Text.Internal (Text (..))
 import Data.Typeable
+import Data.Void (Void, absurd)
 import GHC.Exts
 import GHC.Int
 import GHC.ST (ST (..), runST)
@@ -239,10 +250,15 @@ class MemPack a where
 instance MemPack () where
   packedByteCount _ = 0
   {-# INLINE packedByteCount #-}
-  packM _ = pure ()
+  packM () = pure ()
   {-# INLINE packM #-}
   unpackM = pure ()
   {-# INLINE unpackM #-}
+
+instance MemPack Void where
+  packedByteCount _ = 0
+  packM = absurd
+  unpackM = F.fail "Void is unpackable"
 
 instance MemPack Bool where
   packedByteCount _ = packedTagByteCount
@@ -725,25 +741,25 @@ instance (MemPack a, MemPack b) => MemPack (a, b) where
   packedByteCount (a, b) = packedByteCount a + packedByteCount b
   {-# INLINE packedByteCount #-}
   packM (a, b) = packM a >> packM b
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
     pure (a, b)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance (MemPack a, MemPack b, MemPack c) => MemPack (a, b, c) where
   typeName = "(" ++ typeName @a ++ "," ++ typeName @b ++ "," ++ typeName @c ++ ")"
   packedByteCount (a, b, c) = packedByteCount a + packedByteCount b + packedByteCount c
   {-# INLINE packedByteCount #-}
   packM (a, b, c) = packM a >> packM b >> packM c
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
     !c <- unpackM
     pure (a, b, c)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance (MemPack a, MemPack b, MemPack c, MemPack d) => MemPack (a, b, c, d) where
   typeName = "(" ++ typeName @a ++ "," ++ typeName @b ++ "," ++ typeName @c ++ "," ++ typeName @d ++ ")"
@@ -751,14 +767,14 @@ instance (MemPack a, MemPack b, MemPack c, MemPack d) => MemPack (a, b, c, d) wh
   {-# INLINE packedByteCount #-}
   packM (a, b, c, d) =
     packM a >> packM b >> packM c >> packM d
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
     !c <- unpackM
     !d <- unpackM
     pure (a, b, c, d)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e) => MemPack (a, b, c, d, e) where
   typeName =
@@ -777,7 +793,7 @@ instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e) => MemPack (a, 
   {-# INLINE packedByteCount #-}
   packM (a, b, c, d, e) =
     packM a >> packM b >> packM c >> packM d >> packM e
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
@@ -785,7 +801,7 @@ instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e) => MemPack (a, 
     !d <- unpackM
     !e <- unpackM
     pure (a, b, c, d, e)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e, MemPack f) => MemPack (a, b, c, d, e, f) where
   typeName =
@@ -810,7 +826,7 @@ instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e, MemPack f) => M
   {-# INLINE packedByteCount #-}
   packM (a, b, c, d, e, f) =
     packM a >> packM b >> packM c >> packM d >> packM e >> packM f
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
@@ -819,7 +835,7 @@ instance (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e, MemPack f) => M
     !e <- unpackM
     !f <- unpackM
     pure (a, b, c, d, e, f)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance
   (MemPack a, MemPack b, MemPack c, MemPack d, MemPack e, MemPack f, MemPack g) =>
@@ -849,7 +865,7 @@ instance
   {-# INLINE packedByteCount #-}
   packM (a, b, c, d, e, f, g) =
     packM a >> packM b >> packM c >> packM d >> packM e >> packM f >> packM g
-  {-# INLINE packM #-}
+  {-# INLINEABLE packM #-}
   unpackM = do
     !a <- unpackM
     !b <- unpackM
@@ -859,7 +875,7 @@ instance
     !f <- unpackM
     !g <- unpackM
     pure (a, b, c, d, e, f, g)
-  {-# INLINE unpackM #-}
+  {-# INLINEABLE unpackM #-}
 
 instance MemPack a => MemPack [a] where
   typeName = "[" ++ typeName @a ++ "]"
@@ -913,20 +929,84 @@ instance MemPack ByteString where
     let len = bufferByteCount ba
      in packedByteCount (Length len) + len
   {-# INLINE packedByteCount #-}
-  packM bs = do
-    let !len@(I# len#) = bufferByteCount bs
-    packM (Length len)
-    I# curPos# <- state $ \i -> (i, i + len)
-    Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
-      st_ (copyAddrToByteArray# addr# mba# curPos# len#)
+  packM bs = packM (Length (bufferByteCount bs)) >> packByteStringM bs
   {-# INLINE packM #-}
   unpackM = pinnedByteArrayToByteString <$> unpackByteArray True
   {-# INLINE unpackM #-}
 
--- | This is the implementation of `unpackM` for `ByteArray` and `ByteString`
+{- FOURMOLU_DISABLE -}
+instance MemPack BSL.ByteString where
+#if WORD_SIZE_IN_BITS == 32
+  packedByteCount bsl =
+    let len64 = BSL.length bsl
+        len = fromIntegral len64
+     in if len64 <= fromIntegral (maxBound :: Int)
+        then packedByteCount (Length len) + len
+        else error $ mconcat [ "Cannot pack more that '2 ^ 31 - 1' bytes on a 32bit architecture, "
+                             , "but tried to pack a lazy ByteString with "
+                             , show len64
+                             , " bytes"
+                             ]
+#elif WORD_SIZE_IN_BITS == 64
+  packedByteCount bsl =
+    let len = fromIntegral (BSL.length bsl)
+     in packedByteCount (Length len) + len
+#else
+#error "Only 32bit and 64bit systems are supported"
+#endif
+  {-# INLINE packedByteCount #-}
+  packM bsl = do
+    let !len = fromIntegral (BSL.length bsl)
+        go BSL.Empty = pure ()
+        go (BSL.Chunk bs rest) = packByteStringM bs >> go rest
+    packM (Length len)
+    go bsl
+  {-# INLINE packM #-}
+  unpackM = do
+    Length len <- unpackM
+    let c = BSL.defaultChunkSize
+        go n
+          | n == 0 = pure BSL.Empty
+          | n <= c = BSL.Chunk <$> unpackByteStringM n <*> pure BSL.Empty
+          | otherwise = BSL.Chunk <$> unpackByteStringM c <*> go (n - c)
+    go len
+  {-# INLINE unpackM #-}
+
+instance MemPack Text where
+#if MIN_VERSION_text(2,0,0)
+  packedByteCount (Text _ _ byteCount) = packedByteCount (Length byteCount) + byteCount
+  packM (Text (T.ByteArray ba#) (I# offset#) len@(I# len#)) = do
+    packM (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    MutableByteArray mba# <- ask
+    lift_# (copyByteArray# ba# offset# mba# curPos# len#)
+#else
+  -- FIXME: This is very inefficient and shall be fixed in the next major version
+  packedByteCount = packedByteCount . T.encodeUtf8
+  packM = packM . T.encodeUtf8
+#endif
+  {-# INLINE packedByteCount #-}
+  {-# INLINE packM #-}
+  unpackM = do
+    bs <- unpackM
+    case T.decodeUtf8' bs of
+      Right txt -> pure txt
+      Left exc -> F.fail $ show exc
+  {-# INLINE unpackM #-}
+{- FOURMOLU_ENABLE -}
+
+-- | This is the implementation of `unpackM` for `ByteArray`, `ByteString` and `ShortByteString`
 unpackByteArray :: Buffer b => Bool -> Unpack b ByteArray
-unpackByteArray isPinned = do
-  Length len@(I# len#) <- unpackM
+unpackByteArray isPinned = unpackByteArrayLen isPinned . unLength =<< unpackM
+{-# INLINE unpackByteArray #-}
+
+-- | Unpack a `ByteArray` with supplied number of bytes.
+--
+-- Similar to `unpackByteArray`, except it does not unpack a length.
+--
+-- @since 0.1.1
+unpackByteArrayLen :: Buffer b => Bool -> Int -> Unpack b ByteArray
+unpackByteArrayLen isPinned len@(I# len#) = do
   I# curPos# <- guardAdvanceUnpack len
   buf <- ask
   pure $! runST $ do
@@ -936,7 +1016,7 @@ unpackByteArray isPinned = do
       (\ba# -> st_ (copyByteArray# ba# curPos# mba# 0# len#))
       (\addr# -> st_ (copyAddrToByteArray# (addr# `plusAddr#` curPos#) mba# 0# len#))
     freezeMutableByteArray mba
-{-# INLINE unpackByteArray #-}
+{-# INLINE unpackByteArrayLen #-}
 
 -- | Increment the offset counter of `Pack` monad by then number of `packedByteCount` and
 -- return the starting offset.
@@ -953,24 +1033,25 @@ packIncrement a =
 guardAdvanceUnpack :: Buffer b => Int -> Unpack b Int
 guardAdvanceUnpack n@(I# n#) = do
   buf <- ask
-  let len = bufferByteCount buf
-      failOutOfBytes i =
-        failUnpack $
-          toSomeError $
-            RanOutOfBytesError
-              { ranOutOfBytesRead = i
-              , ranOutOfBytesAvailable = len
-              , ranOutOfBytesRequested = n
-              }
+  let !len = bufferByteCount buf
   -- Check that we still have enough bytes, while guarding against integer overflow.
   join $ state $ \i@(I# i#) ->
     case addIntC# i# n# of
-      (# adv#, 0# #) ->
-        if len < I# adv#
-          then (failOutOfBytes i, i)
-          else (pure i, I# adv#)
-      _ -> (failOutOfBytes i, i)
+      (# adv#, 0# #)
+        | len >= I# adv# -> (pure i, I# adv#)
+      _ -> (failOutOfBytes i len n, i)
 {-# INLINE guardAdvanceUnpack #-}
+
+failOutOfBytes :: Int -> Int -> Int -> Unpack b a
+failOutOfBytes i len n =
+  failUnpack $
+    toSomeError $
+      RanOutOfBytesError
+        { ranOutOfBytesRead = i
+        , ranOutOfBytesAvailable = len
+        , ranOutOfBytesRequested = n
+        }
+{-# NOINLINE failOutOfBytes #-}
 
 -- | Serialize a type into an unpinned `ByteArray`
 --
@@ -1050,21 +1131,47 @@ packWithMutableByteArray ::
 packWithMutableByteArray isPinned name len packerM = do
   mba <- newMutableByteArray isPinned len
   filledBytes <- execStateT (runPack packerM mba) 0
-  when (filledBytes /= len) $
-    if (filledBytes < len)
-      then
-        error $
-          "Some bug in 'packM' was detected. Buffer of length " <> showBytes len
-            ++ " was not fully filled while packing " <> name
-            ++ ". Unfilled " <> showBytes (len - filledBytes) <> "."
-      else
-        -- This is a critical error, therefore we are not gracefully failing this unpacking
-        error $
-          "Potential buffer overflow. Some bug in 'packM' was detected while packing " <> name
-            ++ ". Filled " <> showBytes (filledBytes - len) <> " more than allowed into a buffer of length "
-            ++ show len
+  when (filledBytes /= len) $ errorFilledBytes name filledBytes len
   pure mba
-{-# INLINE packWithMutableByteArray #-}
+{-# INLINEABLE packWithMutableByteArray #-}
+
+-- | This is a critical error, therefore we are not gracefully failing this unpacking
+errorFilledBytes :: HasCallStack => [Char] -> Int -> Int -> a
+errorFilledBytes name filledBytes len =
+  if filledBytes < len
+    then
+      error $
+        "Some bug in 'packM' was detected. Buffer of length " <> showBytes len
+          ++ " was not fully filled while packing " <> name
+          ++ ". Unfilled " <> showBytes (len - filledBytes) <> "."
+    else
+      error $
+        "Potential buffer overflow. Some bug in 'packM' was detected while packing " <> name
+          ++ ". Filled " <> showBytes (filledBytes - len) <> " more than allowed into a buffer of length "
+          ++ show len
+{-# NOINLINE errorFilledBytes #-}
+
+-- | Helper function for packing a `ByteString` without its length being packed first.
+--
+-- @since 0.1.1
+packByteStringM :: ByteString -> Pack s ()
+packByteStringM bs = do
+  let !len@(I# len#) = bufferByteCount bs
+  I# curPos# <- state $ \i -> (i, i + len)
+  Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
+    st_ (copyAddrToByteArray# addr# mba# curPos# len#)
+{-# INLINE packByteStringM #-}
+
+-- | Unpack a `ByteString` of a specified size.
+--
+-- @since 0.1.1
+unpackByteStringM ::
+  Buffer b =>
+  -- | number of bytes to unpack
+  Int ->
+  Unpack b ByteString
+unpackByteStringM len = pinnedByteArrayToByteString <$> unpackByteArrayLen True len
+{-# INLINE unpackByteStringM #-}
 
 -- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides the
 -- unpacked type it also returns an index into a buffer where unpacked has stopped.
@@ -1072,14 +1179,18 @@ unpackLeftOver :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail S
 unpackLeftOver b = do
   let len = bufferByteCount b
   res@(_, consumedBytes) <- runStateT (runUnpack unpackM b) 0
-  when (consumedBytes > len) $
-    -- This is a critical error, therefore we are not gracefully failing this unpacking
-    error $
-      "Potential buffer overflow. Some bug in 'unpackM' was detected while unpacking " <> typeName @a
-        ++ ". Consumed " <> showBytes (consumedBytes - len) <> " more than allowed from a buffer of length "
-        ++ show len
+  when (consumedBytes > len) $ errorLeftOver (typeName @a) consumedBytes len
   pure res
 {-# INLINEABLE unpackLeftOver #-}
+
+-- | This is a critical error, therefore we are not gracefully failing this unpacking
+errorLeftOver :: HasCallStack => String -> Int -> Int -> a
+errorLeftOver name consumedBytes len =
+  error $
+    "Potential buffer overflow. Some bug in 'unpackM' was detected while unpacking " <> name
+      ++ ". Consumed " <> showBytes (consumedBytes - len) <> " more than allowed from a buffer of length "
+      ++ show len
+{-# NOINLINE errorLeftOver #-}
 
 -- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides potential
 -- unpacking failures due to a malformed buffer it will also fail the supplied `Buffer`
@@ -1087,33 +1198,37 @@ unpackLeftOver b = do
 -- possible.
 unpack :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Either SomeError a
 unpack = first fromMultipleErrors . runFailAgg . unpackFail
-{-# INLINE unpack #-}
+{-# INLINEABLE unpack #-}
 
 -- | Same as `unpack` except fails in a `Fail` monad, instead of `Either`.
 unpackFail :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError a
 unpackFail b = do
   let len = bufferByteCount b
   (a, consumedBytes) <- unpackLeftOver b
-  when (consumedBytes /= len) $
-    failT $
-      toSomeError $
-        NotFullyConsumedError
-          { notFullyConsumedRead = consumedBytes
-          , notFullyConsumedAvailable = len
-          , notFullyConsumedTypeName = typeName @a
-          }
+  when (consumedBytes /= len) $ unpackFailNotFullyConsumed (typeName @a) consumedBytes len
   pure a
 {-# INLINEABLE unpackFail #-}
+
+unpackFailNotFullyConsumed :: Applicative m => String -> Int -> Int -> FailT SomeError m a
+unpackFailNotFullyConsumed name consumedBytes len =
+  failT $
+    toSomeError $
+      NotFullyConsumedError
+        { notFullyConsumedRead = consumedBytes
+        , notFullyConsumedAvailable = len
+        , notFullyConsumedTypeName = name
+        }
+{-# NOINLINE unpackFailNotFullyConsumed #-}
 
 -- | Same as `unpackFail` except fails in any `MonadFail`, instead of `Fail`.
 unpackMonadFail :: forall a b m. (MemPack a, Buffer b, F.MonadFail m) => b -> m a
 unpackMonadFail = either (F.fail . show) pure . unpack
-{-# INLINE unpackMonadFail #-}
+{-# INLINEABLE unpackMonadFail #-}
 
 -- | Same as `unpack` except throws a runtime exception upon a failure
 unpackError :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> a
 unpackError = errorFail . unpackFail
-{-# INLINE unpackError #-}
+{-# INLINEABLE unpackError #-}
 
 -- | Variable length encoding for bounded types. This type of encoding will use less
 -- memory for small values, but for larger values it will consume more memory and will be
@@ -1207,9 +1322,10 @@ packedVarLenByteCount (VarLen x) =
     (q, _) -> q + 1
 {-# INLINE packedVarLenByteCount #-}
 
-errorTooManyBits :: [Char] -> a
+errorTooManyBits :: HasCallStack => String -> a
 errorTooManyBits name =
   error $ "Bug detected. Trying to pack more bits for " ++ name ++ " than it should be posssible"
+{-# NOINLINE errorTooManyBits #-}
 
 packIntoCont7 ::
   (Bits t, Integral t) => t -> (Int -> Pack s ()) -> Int -> Pack s ()
@@ -1220,7 +1336,7 @@ packIntoCont7 x cont n
       cont (n - 7)
   where
     topBit8 :: Word8
-    topBit8 = 0b_1000_0000
+    !topBit8 = 0b_1000_0000
 {-# INLINE packIntoCont7 #-}
 
 -- | Decode a variable length integral value that is encoded with 7 bits of data
@@ -1256,13 +1372,17 @@ unpack7BitVarLenLast mask firstByte acc = do
   res <- unpack7BitVarLen (\_ _ -> F.fail "Too many bytes.") firstByte acc
   -- Only while decoding the last 7bits we check if there was too many
   -- bits supplied at the beginning.
-  unless (firstByte .&. mask == 0b_1000_0000) $
-    F.fail $
-      "Unexpected bits for "
-        ++ typeName @t
-        ++ " were set in the first byte of 'VarLen': 0x" <> showHex firstByte ""
+  unless (firstByte .&. mask == 0b_1000_0000) $ unpack7BitVarLenLastFail (typeName @t) firstByte
   pure res
 {-# INLINE unpack7BitVarLenLast #-}
+
+unpack7BitVarLenLastFail :: F.MonadFail m => String -> Word8 -> m a
+unpack7BitVarLenLastFail name firstByte =
+  F.fail $
+    "Unexpected bits for "
+      ++ name
+      ++ " were set in the first byte of 'VarLen': 0x" <> showHex firstByte ""
+{-# NOINLINE unpack7BitVarLenLastFail #-}
 
 -- | This is a helper type useful for serializing number of elements in data
 -- structures. It uses `VarLen` underneath, since sizes of common data structures aren't
@@ -1283,16 +1403,23 @@ instance Enum Length where
 instance MemPack Length where
   packedByteCount = packedByteCount . VarLen . fromIntegral @Int @Word . unLength
   packM (Length n)
-    | n < 0 = error $ "Length cannot be negative. Supplied: " ++ show n
+    | n < 0 = packLengthError n
     | otherwise = packM (VarLen (fromIntegral @Int @Word n))
   {-# INLINE packM #-}
   unpackM = do
     VarLen (w :: Word) <- unpackM
-    when (testBit w (finiteBitSize w - 1)) $
-      F.fail $
-        "Attempt to unpack negative length was detected: " ++ show (fromIntegral @Word @Int w)
+    when (testBit w (finiteBitSize w - 1)) $ upackLengthFail w
     pure $ Length $ fromIntegral @Word @Int w
   {-# INLINE unpackM #-}
+
+packLengthError :: Int -> a
+packLengthError n = error $ "Length cannot be negative. Supplied: " ++ show n
+{-# NOINLINE packLengthError #-}
+
+upackLengthFail :: F.MonadFail m => Word -> m a
+upackLengthFail w =
+  F.fail $ "Attempt to unpack negative length was detected: " ++ show (fromIntegral @Word @Int w)
+{-# NOINLINE upackLengthFail #-}
 
 -- | This is a helper type that is useful for creating `MemPack` instances for sum types.
 newtype Tag = Tag {unTag :: Word8}

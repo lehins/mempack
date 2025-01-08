@@ -27,7 +27,7 @@ instance Show SomeError where
 
 instance Exception SomeError
 
--- | Very similar interface to `Exceptions`, except not intended for run time exceptions.
+-- | Very similar interface to `Exceptions`, except not intended for runtime exceptions.
 class Show e => Error e where
   toSomeError :: e -> SomeError
   default toSomeError :: Typeable e => e -> SomeError
@@ -65,6 +65,8 @@ fromMultipleErrors es =
     [] -> toSomeError UnknownError
     [e] -> e
     e : rest -> toSomeError $ ManyErrors (e :| rest)
+{-# NOINLINE fromMultipleErrors #-}
+
 
 data RanOutOfBytesError = RanOutOfBytesError
   { ranOutOfBytesRead :: Int

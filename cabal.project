@@ -1,0 +1,9 @@
+packages:
+  .
+
+-- remove once `serialise` is compatible with ghc-9.12
+allow-newer:
+  serialise:base
+
+-- Always build tests
+tests: True
