@@ -1286,16 +1286,16 @@ instance MemPack (VarLen Word) where
   packedByteCount = packedVarLenByteCount
   {-# INLINE packedByteCount #-}
 #if WORD_SIZE_IN_BITS == 32
-  packM mba v@(VarLen x) = p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word"))))) (numBits - 7)
+  packM v@(VarLen x) = p7 (p7 (p7 (p7 (p7 (errorTooManyBits "Word"))))) (numBits - 7)
     where
-      p7 = packIntoCont7 mba x
+      p7 = packIntoCont7 x
       {-# INLINE p7 #-}
       numBits = packedVarLenByteCount v * 7
   {-# INLINE packM #-}
-  unpackM buf = do
-    let d7 = unpack7BitVarLen buf
+  unpackM = do
+    let d7 = unpack7BitVarLen
         {-# INLINE d7 #-}
-    VarLen <$> d7 (d7 (d7 (d7 (unpack7BitVarLenLast buf 0b_1111_0000)))) 0 0
+    VarLen <$> d7 (d7 (d7 (d7 (unpack7BitVarLenLast 0b_1111_0000)))) 0 0
   {-# INLINE unpackM #-}
 #elif WORD_SIZE_IN_BITS == 64
   packM v@(VarLen x) =
