@@ -322,9 +322,11 @@ instance MemPack Char where
             buf
             (\ba# -> C# (indexWord8ArrayAsWideChar# ba# i#))
             (\addr# -> C# (indexWideCharOffAddr# (addr# `plusAddr#` i#) 0#))
-    when (ord c > 0x10FFFF) $
+        ordc :: Word32
+        ordc = fromIntegral (ord c)
+    when (ordc > 0x10FFFF) $
       F.fail $
-        "Out of bounds Char was detected: '\\x" ++ showHex (fromEnum c) "'"
+        "Out of bounds Char was detected: '\\x" ++ showHex ordc "'"
     pure c
   {-# INLINE unpackM #-}
 
