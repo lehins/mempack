@@ -12,3 +12,6 @@ tests: True
 if impl(ghc >= 9.0) || impl(ghc < 9.2)
   constraints:
     th-utilities < 0.2.5.1
+if impl(ghc < 8.8)
+  constraints:
+    store == 0.7.18
