@@ -7,3 +7,8 @@ allow-newer:
 
 -- Always build tests
 tests: True
+
+-- https://github.com/fpco/th-utilities/issues/19
+if impl(ghc >= 9.0) || impl(ghc < 9.2)
+  constraints:
+    th-utilities < 0.2.5.1

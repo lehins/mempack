@@ -196,3 +196,22 @@ jobs:
       run: |
         set -ex
         cabal -vnormal check
+
+  i386:
+    runs-on: ubuntu-latest
+    container:
+      image: i386/ubuntu:bionic
+    steps:
+    - name: Install
+      run: |
+        apt-get update -y
+        apt-get install -y autoconf build-essential zlib1g-dev libgmp-dev curl libncurses5 libtinfo5 libncurses5-dev libtinfo-dev wget
+        wget https://get-ghcup.haskell.org -O ghcup.sh -t 10 --retry-connrefused
+        chmod a+x ghcup.sh
+        BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_INSTALL_NO_STACK=1 ./ghcup.sh
+    - uses: actions/checkout@v1
+    - name: Test
+      run: |
+        source ~/.ghcup/env
+        cabal update
+        cabal test
