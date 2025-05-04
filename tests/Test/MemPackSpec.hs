@@ -59,6 +59,9 @@ instance Uniform Length where
   uniformM = uniformEnumM
 instance UniformRange Length where
   uniformRM = uniformEnumRM
+#if MIN_VERSION_random(1,3,0)
+  isInRange = isInRangeEnum
+#endif
 
 instance Arbitrary Length where
   -- Fun fact: `abs minBound == minBound` for Int, so instead of abs we clear top most

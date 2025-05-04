@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -25,9 +26,15 @@ instance StatefulGen QC Gen where
   {-# INLINE uniformWord32 #-}
   uniformWord64 QC = MkGen (\r _n -> runStateGen_ r uniformWord64)
   {-# INLINE uniformWord64 #-}
+#if MIN_VERSION_random(1,3,0)
+  uniformByteArrayM pinned k QC =
+    MkGen (\r _n -> runStateGen_ r (uniformByteArrayM pinned k))
+  {-# INLINE uniformByteArrayM #-}
+#else
   uniformShortByteString k QC =
     MkGen (\r _n -> runStateGen_ r (uniformShortByteString k))
   {-# INLINE uniformShortByteString #-}
+#endif
 
 instance Arbitrary ByteArray where
   arbitrary = qcByteArray . getNonNegative =<< arbitrary
@@ -51,4 +58,8 @@ qcByteString :: Int -> Gen ByteString
 qcByteString n = uniformByteStringM (fromIntegral n) QC
 
 qcShortByteString :: Int -> Gen SBS.ShortByteString
+#if MIN_VERSION_random(1,3,0)
+qcShortByteString n = uniformShortByteStringM (fromIntegral n) QC
+#else
 qcShortByteString n = uniformShortByteString (fromIntegral n) QC
+#endif
