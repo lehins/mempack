@@ -1,5 +1,9 @@
 # Changelog for `mempack`
 
+## 0.1.2.0
+
+* Fix 32-bit support
+
 ## 0.1.1.0
 
 * Add helpers `packByteStringM`, `unpackByteStringM` and `unpackByteArrayLen`

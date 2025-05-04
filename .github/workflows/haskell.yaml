@@ -44,12 +44,12 @@ jobs:
             ghc: 9.4.8
             stack-yaml: stack-coveralls.yaml
           - resolver: lts-22
-            ghc: 9.6.6
+            ghc: 9.6.7
           - resolver: lts-23
             ghc: 9.8.4
             stack-yaml: stack.yaml
           - resolver: nightly
-            ghc: 9.8.2
+            ghc: 9.10.1
             stack-yaml: stack.yaml
         exclude:
           # Newer MacOS does not support older GHC:
@@ -134,21 +134,21 @@ jobs:
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.0.2" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.4.8" }
-          - { cabal: "3.14", os: ubuntu-latest, ghc: "9.6.6" }
+          - { cabal: "3.14", os: ubuntu-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.10.1" }
           # - { cabal: "3.14", os: ubuntu-latest, ghc: "9.12.1" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.0.2" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.4.8" }
-          - { cabal: "3.14", os: windows-latest, ghc: "9.6.6" }
+          - { cabal: "3.14", os: windows-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.10.1" }
           # - { cabal: "3.14", os: windows-latest, ghc: "9.12.1" }
           - { cabal: "3.14", os: macOS-13, ghc: "9.0.2" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.4.8" }
-          - { cabal: "3.14", os: macOS-latest, ghc: "9.6.6" }
+          - { cabal: "3.14", os: macOS-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.10.1" }
           # - { cabal: "3.14", os: macOS-latest, ghc: "9.12.1" }
