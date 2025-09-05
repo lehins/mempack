@@ -1,5 +1,10 @@
 # Changelog for `mempack`
 
+## 0.2.0.0
+
+* Add an offset to the `buffer` function in order to support types that don't use the full
+  underlying buffer.
+
 ## 0.1.2.0
 
 * Fix 32-bit support
