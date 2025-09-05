@@ -22,22 +22,34 @@ import GHC.ForeignPtr
 
 -- | Immutable memory buffer
 class Buffer b where
+  -- | Number of accessible bytes in the buffer.
   bufferByteCount :: b -> Int
 
-  buffer :: b -> (ByteArray# -> a) -> (Addr# -> a) -> a
+  -- | Use one of the two suppplied functions to access memory of the buffer:
+  buffer ::
+    -- | A type that contains the actual buffer that will be accessed
+    b ->
+    -- | In case when a buffer is backed by a `ByteArray#` it will be accessed as such with an
+    -- offset from the beginning of the ByteArray
+    (ByteArray# -> Int# -> a) ->
+    -- | In case when a buffer is backed by a pointer or a pinned `ByteArray#` it can be accessed as
+    -- an `Addr#`. No offset is necessary here, since same affect can be achieved with pointer
+    -- arithmetic.
+    (Addr# -> a) ->
+    a
 
 instance Buffer ByteArray where
   bufferByteCount (ByteArray ba#) = I# (sizeofByteArray# ba#)
   {-# INLINE bufferByteCount #-}
 
-  buffer (ByteArray ba#) f _ = f ba#
+  buffer (ByteArray ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
 
 instance Buffer SBS.ShortByteString where
   bufferByteCount = SBS.length
   {-# INLINE bufferByteCount #-}
 
-  buffer (SBS.SBS ba#) f _ = f ba#
+  buffer (SBS.SBS ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
 
 instance Buffer BS.ByteString where

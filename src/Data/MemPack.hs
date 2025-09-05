@@ -320,7 +320,7 @@ instance MemPack Char where
     let c =
           buffer
             buf
-            (\ba# -> C# (indexWord8ArrayAsWideChar# ba# i#))
+            (\ba# off# -> C# (indexWord8ArrayAsWideChar# ba# (i# +# off#)))
             (\addr# -> C# (indexWideCharOffAddr# (addr# `plusAddr#` i#) 0#))
         ordc :: Word32
         ordc = fromIntegral (ord c)
@@ -344,7 +344,7 @@ instance MemPack Float where
     pure $!
       buffer
         buf
-        (\ba# -> F# (indexWord8ArrayAsFloat# ba# i#))
+        (\ba# off# -> F# (indexWord8ArrayAsFloat# ba# (i# +# off#)))
         (\addr# -> F# (indexFloatOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -362,7 +362,7 @@ instance MemPack Double where
     pure $!
       buffer
         buf
-        (\ba# -> D# (indexWord8ArrayAsDouble# ba# i#))
+        (\ba# off# -> D# (indexWord8ArrayAsDouble# ba# (i# +# off#)))
         (\addr# -> D# (indexDoubleOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -381,7 +381,7 @@ instance MemPack (Ptr a) where
     pure $!
       buffer
         buf
-        (\ba# -> Ptr (indexWord8ArrayAsAddr# ba# i#))
+        (\ba# off# -> Ptr (indexWord8ArrayAsAddr# ba# (i# +# off#)))
         (\addr# -> Ptr (indexAddrOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -400,7 +400,7 @@ instance MemPack (StablePtr a) where
     pure $!
       buffer
         buf
-        (\ba# -> StablePtr (indexWord8ArrayAsStablePtr# ba# i#))
+        (\ba# off# -> StablePtr (indexWord8ArrayAsStablePtr# ba# (i# +# off#)))
         (\addr# -> StablePtr (indexStablePtrOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -418,7 +418,7 @@ instance MemPack Int where
     pure $!
       buffer
         buf
-        (\ba# -> I# (indexWord8ArrayAsInt# ba# i#))
+        (\ba# off# -> I# (indexWord8ArrayAsInt# ba# (i# +# off#)))
         (\addr# -> I# (indexIntOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -436,7 +436,7 @@ instance MemPack Int8 where
     pure $!
       buffer
         buf
-        (\ba# -> I8# (indexInt8Array# ba# i#))
+        (\ba# off# -> I8# (indexInt8Array# ba# (i# +# off#)))
         (\addr# -> I8# (indexInt8OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -454,7 +454,7 @@ instance MemPack Int16 where
     pure $!
       buffer
         buf
-        (\ba# -> I16# (indexWord8ArrayAsInt16# ba# i#))
+        (\ba# off# -> I16# (indexWord8ArrayAsInt16# ba# (i# +# off#)))
         (\addr# -> I16# (indexInt16OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -472,7 +472,7 @@ instance MemPack Int32 where
     pure $!
       buffer
         buf
-        (\ba# -> I32# (indexWord8ArrayAsInt32# ba# i#))
+        (\ba# off# -> I32# (indexWord8ArrayAsInt32# ba# (i# +# off#)))
         (\addr# -> I32# (indexInt32OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -490,7 +490,7 @@ instance MemPack Int64 where
     pure $!
       buffer
         buf
-        (\ba# -> I64# (indexWord8ArrayAsInt64# ba# i#))
+        (\ba# off# -> I64# (indexWord8ArrayAsInt64# ba# (i# +# off#)))
         (\addr# -> I64# (indexInt64OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -508,7 +508,7 @@ instance MemPack Word where
     pure $!
       buffer
         buf
-        (\ba# -> W# (indexWord8ArrayAsWord# ba# i#))
+        (\ba# off# -> W# (indexWord8ArrayAsWord# ba# (i# +# off#)))
         (\addr# -> W# (indexWordOffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -526,7 +526,7 @@ instance MemPack Word8 where
     pure $!
       buffer
         buf
-        (\ba# -> W8# (indexWord8Array# ba# i#))
+        (\ba# off# -> W8# (indexWord8Array# ba# (i# +# off#)))
         (\addr# -> W8# (indexWord8OffAddr# addr# i#))
   {-# INLINE unpackM #-}
 
@@ -544,7 +544,7 @@ instance MemPack Word16 where
     pure $!
       buffer
         buf
-        (\ba# -> W16# (indexWord8ArrayAsWord16# ba# i#))
+        (\ba# off# -> W16# (indexWord8ArrayAsWord16# ba# (i# +# off#)))
         (\addr# -> W16# (indexWord16OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -562,7 +562,7 @@ instance MemPack Word32 where
     pure $!
       buffer
         buf
-        (\ba# -> W32# (indexWord8ArrayAsWord32# ba# i#))
+        (\ba# off# -> W32# (indexWord8ArrayAsWord32# ba# (i# +# off#)))
         (\addr# -> W32# (indexWord32OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -580,7 +580,7 @@ instance MemPack Word64 where
     pure $!
       buffer
         buf
-        (\ba# -> W64# (indexWord8ArrayAsWord64# ba# i#))
+        (\ba# off# -> W64# (indexWord8ArrayAsWord64# ba# (i# +# off#)))
         (\addr# -> W64# (indexWord64OffAddr# (addr# `plusAddr#` i#) 0#))
   {-# INLINE unpackM #-}
 
@@ -1015,7 +1015,7 @@ unpackByteArrayLen isPinned len@(I# len#) = do
     mba@(MutableByteArray mba#) <- newMutableByteArray isPinned len
     buffer
       buf
-      (\ba# -> st_ (copyByteArray# ba# curPos# mba# 0# len#))
+      (\ba# off# -> st_ (copyByteArray# ba# (curPos# +# off#) mba# 0# len#))
       (\addr# -> st_ (copyAddrToByteArray# (addr# `plusAddr#` curPos#) mba# 0# len#))
     freezeMutableByteArray mba
 {-# INLINE unpackByteArrayLen #-}
