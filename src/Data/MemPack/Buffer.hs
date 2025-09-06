@@ -15,13 +15,13 @@ module Data.MemPack.Buffer where
 
 import Data.Array.Byte
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Short.Internal as SBS
 import qualified Data.ByteString.Internal as BS
-import Data.Primitive.PrimArray (PrimArray(..))
+import qualified Data.ByteString.Short.Internal as SBS
+import Data.Primitive.PrimArray (PrimArray (..))
 import Data.Word (Word8)
 import GHC.Exts
-import GHC.ST
 import GHC.ForeignPtr
+import GHC.ST
 #if !MIN_VERSION_primitive(0,8,0)
 import qualified Data.Primitive.ByteArray as Prim (ByteArray(..))
 #endif
@@ -93,6 +93,7 @@ freezeMutableByteArray (MutableByteArray mba#) =
   ST $ \s# -> case unsafeFreezeByteArray# mba# s# of
     (# s'#, ba# #) -> (# s'#, ByteArray ba# #)
 
+{- FOURMOLU_DISABLE -}
 -- | It is ok to use ByteString withing ST, as long as underlying pointer is never mutated
 -- or returned from the supplied action.
 withPtrByteStringST :: BS.ByteString -> (Ptr a -> ST s b) -> ST s b
@@ -107,6 +108,7 @@ withPtrByteStringST (BS.PS (ForeignPtr addr0# ptrContents) (I# offset#) _) f = d
   ST $ \s# -> (# unsafeCoerce# (touch# ptrContents (unsafeCoerce# s#)), () #)
   pure r
 {-# INLINE withPtrByteStringST #-}
+{- FOURMOLU_ENABLE -}
 
 pinnedByteArrayToByteString :: ByteArray -> BS.ByteString
 pinnedByteArrayToByteString (ByteArray ba#) =
@@ -117,7 +119,6 @@ pinnedByteArrayToForeignPtr :: ByteArray# -> ForeignPtr a
 pinnedByteArrayToForeignPtr ba# =
   ForeignPtr (byteArrayContents# ba#) (PlainPtr (unsafeCoerce# ba#))
 {-# INLINE pinnedByteArrayToForeignPtr #-}
-
 
 byteArrayToShortByteString :: ByteArray -> SBS.ShortByteString
 byteArrayToShortByteString (ByteArray ba#) = SBS.SBS ba#
