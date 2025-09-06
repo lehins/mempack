@@ -94,6 +94,7 @@ import Data.Complex (Complex (..))
 import Data.List (intercalate)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Primitive.Array (Array (..), arrayFromListN, sizeofArray)
 import Data.Primitive.PrimArray (PrimArray (..), sizeofPrimArray)
 import Data.Primitive.Types (Prim (sizeOf#))
 import Data.Ratio
@@ -895,6 +896,21 @@ instance MemPack a => MemPack [a] where
   unpackM = do
     Length n <- unpackM
     replicateTailM n unpackM
+  {-# INLINE unpackM #-}
+
+instance MemPack a => MemPack (Array a) where
+  typeName = "(Array " ++ typeName @a ++ ")"
+  packedByteCount arr =
+    packedByteCount (Length (sizeofArray arr)) + getSum (foldMap (Sum . packedByteCount) arr)
+  {-# INLINE packedByteCount #-}
+  packM as = do
+    packM (Length (length as))
+    mapM_ packM as
+  {-# INLINE packM #-}
+  unpackM = do
+    Length n <- unpackM
+    xs <- replicateTailM n unpackM
+    pure $ arrayFromListN n xs
   {-# INLINE unpackM #-}
 
 -- | Tail recursive version of `replicateM`

@@ -12,9 +12,11 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BSL
 import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import Data.MemPack.Buffer (byteArrayFromShortByteString)
+import Data.Primitive.Array (Array)
 import Data.Primitive.PrimArray (PrimArray (..), primArrayFromList)
 import Data.Primitive.Types (Prim)
 import qualified Data.Text as T
+import GHC.Exts (fromList)
 import System.Random.Stateful
 import Test.Hspec as X
 import Test.Hspec.QuickCheck as X
@@ -55,6 +57,9 @@ instance Arbitrary T.Text where
 
 instance (Prim a, Arbitrary a) => Arbitrary (PrimArray a) where
   arbitrary = primArrayFromList <$> arbitrary
+
+instance Arbitrary a => Arbitrary (Array a) where
+  arbitrary = fromList <$> arbitrary
 
 qcByteArray :: Int -> Gen ByteArray
 qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n
