@@ -18,8 +18,8 @@ import qualified Control.Monad.Fail as F
 import Data.Array.Byte (ByteArray)
 import Data.Bits
 import Data.ByteString (ByteString)
-import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Lazy as BSL
+import Data.ByteString.Short (ShortByteString)
 import Data.Complex
 import Data.Either (isLeft)
 import Data.Function (fix)
@@ -27,7 +27,8 @@ import Data.Int
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
-import Data.Primitive.PrimArray (PrimArray(..))
+import Data.Primitive.Array (Array)
+import Data.Primitive.PrimArray (PrimArray (..))
 import Data.Ratio
 import Data.Text (Text)
 import Data.Word
@@ -243,6 +244,7 @@ spec = do
   memPackSpec @ByteString
   memPackSpec @BSL.ByteString
   memPackSpec @(PrimArray Char)
+  memPackSpec @(Array Integer)
   memPackSpec @Text
   memPackSpec @Backtrack
   prop "Out of bound char" $ forAll (choose (0x110000, maxBound :: Word32)) $ \w32 ->
