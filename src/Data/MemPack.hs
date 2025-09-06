@@ -94,6 +94,8 @@ import Data.Complex (Complex (..))
 import Data.List (intercalate)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Primitive.PrimArray (PrimArray (..), sizeofPrimArray)
+import Data.Primitive.Types (Prim (sizeOf#))
 import Data.Ratio
 import Data.Semigroup (Sum (..))
 #if MIN_VERSION_text(2,0,0)
@@ -122,6 +124,9 @@ import GHC.Natural (Natural (..), isValidNatural)
 #endif
 #if !(MIN_VERSION_base(4,13,0))
 import Prelude (fail)
+#endif
+#if !MIN_VERSION_primitive(0,8,0)
+import qualified Data.Primitive.ByteArray as Prim (ByteArray(..))
 #endif
 
 -- | Monad that is used for serializing data into a `MutableByteArray`. It is based on
@@ -915,6 +920,38 @@ instance MemPack ByteArray where
   {-# INLINE packM #-}
   unpackM = unpackByteArray False
   {-# INLINE unpackM #-}
+
+instance (Typeable a, Prim a) => MemPack (PrimArray a) where
+  packedByteCount pa =
+    let len = I# (sizeOf# (undefined :: a)) * sizeofPrimArray pa
+     in packedByteCount (Length len) + len
+  {-# INLINE packedByteCount #-}
+  packM pa@(PrimArray ba#) = do
+    let !len@(I# len#) = I# (sizeOf# (undefined :: a)) * sizeofPrimArray pa
+    packM (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    MutableByteArray mba# <- ask
+    lift_# (copyByteArray# ba# 0# mba# curPos# len#)
+  {-# INLINE packM #-}
+  unpackM = (\(ByteArray ba#) -> PrimArray ba#) <$> unpackByteArray False
+  {-# INLINE unpackM #-}
+
+#if !MIN_VERSION_primitive(0,8,0)
+instance MemPack Prim.ByteArray where
+  packedByteCount ba =
+    let len = bufferByteCount ba
+     in packedByteCount (Length len) + len
+  {-# INLINE packedByteCount #-}
+  packM ba@(Prim.ByteArray ba#) = do
+    let !len@(I# len#) = bufferByteCount ba
+    packM (Length len)
+    I# curPos# <- state $ \i -> (i, i + len)
+    MutableByteArray mba# <- ask
+    lift_# (copyByteArray# ba# 0# mba# curPos# len#)
+  {-# INLINE packM #-}
+  unpackM = (\(ByteArray ba#) -> Prim.ByteArray ba#) <$> unpackByteArray False
+  {-# INLINE unpackM #-}
+#endif
 
 instance MemPack ShortByteString where
   packedByteCount ba =

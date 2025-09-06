@@ -242,7 +242,7 @@ spec = do
   memPackSpec @ByteArray
   memPackSpec @ByteString
   memPackSpec @BSL.ByteString
-  memPackSpec @ByteArray
+  memPackSpec @(PrimArray Char)
   memPackSpec @Text
   memPackSpec @Backtrack
   prop "Out of bound char" $ forAll (choose (0x110000, maxBound :: Word32)) $ \w32 ->
