@@ -9,9 +9,11 @@ module Test.Common (
 
 import Data.Array.Byte (ByteArray (..))
 import Data.ByteString (ByteString)
-import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import qualified Data.ByteString.Lazy as BSL
+import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import Data.MemPack.Buffer (byteArrayFromShortByteString)
+import Data.Primitive.PrimArray (PrimArray (..), primArrayFromList)
+import Data.Primitive.Types (Prim)
 import qualified Data.Text as T
 import System.Random.Stateful
 import Test.Hspec as X
@@ -50,6 +52,9 @@ instance Arbitrary BSL.ByteString where
 
 instance Arbitrary T.Text where
   arbitrary = T.pack <$> arbitrary
+
+instance (Prim a, Arbitrary a) => Arbitrary (PrimArray a) where
+  arbitrary = primArrayFromList <$> arbitrary
 
 qcByteArray :: Int -> Gen ByteArray
 qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n
