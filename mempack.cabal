@@ -7,7 +7,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Alexey Kuleshevich
 maintainer:          alexey@kuleshevi.ch
-copyright:           2024 Alexey Kuleshevich
+copyright:           2024-2025 Alexey Kuleshevich
 category:            Algorithms
 build-type:          Simple
 extra-source-files:  README.md
@@ -21,8 +21,8 @@ tested-with:         GHC == 8.6.5
                    , GHC == 9.4.8
                    , GHC == 9.6.7
                    , GHC == 9.8.4
-                   , GHC == 9.10.1
-                   , GHC == 9.12.1
+                   , GHC == 9.10.2
+                   , GHC == 9.12.2
 
 library
   hs-source-dirs:      src
