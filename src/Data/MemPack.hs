@@ -79,7 +79,6 @@ module Data.MemPack (
 
 #include "MachDeps.h"
 
-import Data.Foldable (foldMap')
 import Control.Applicative (Alternative (..))
 import Control.Monad (join, unless, when)
 import qualified Control.Monad.Fail as F
@@ -95,6 +94,7 @@ import qualified Data.ByteString.Lazy.Internal as BSL
 import Data.ByteString.Short (ShortByteString)
 import Data.Char (ord)
 import Data.Complex (Complex (..))
+import qualified Data.Foldable as F (foldl')
 import Data.List (intercalate)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
@@ -102,7 +102,6 @@ import Data.Primitive.Array (Array (..), newArray, sizeofArray, unsafeFreezeArra
 import Data.Primitive.PrimArray (PrimArray (..), sizeofPrimArray)
 import Data.Primitive.Types (Prim (sizeOf#))
 import Data.Ratio
-import Data.Semigroup (Sum (..))
 #if MIN_VERSION_text(2,0,0)
 import qualified Data.Text.Array as T
 #endif
@@ -127,7 +126,7 @@ import GHC.Natural (Natural (..), isValidNatural)
 #else
 #error "Only integer-gmp is supported for now for older compilers"
 #endif
-#if !(MIN_VERSION_base(4,13,0))
+#if !MIN_VERSION_base(4,13,0)
 import Prelude (fail)
 #endif
 #if !MIN_VERSION_primitive(0,8,0)
@@ -891,7 +890,12 @@ instance
 
 instance MemPack a => MemPack [a] where
   typeName = "[" ++ typeName @a ++ "]"
-  packedByteCount es = packedByteCount (Length (length es)) + getSum (foldMap (Sum . packedByteCount) es)
+  packedByteCount es =
+    let go [] (# listLen#, elemsLen# #) = packedByteCount (Length (I# listLen#)) + (I# elemsLen#)
+        go (x : xs) (# listLen#, elemsLen# #) =
+          let !(I# bc#) = packedByteCount x
+           in go xs (# 1# +# listLen#, bc# +# elemsLen# #)
+     in go es (# 0#, 0# #)
   {-# INLINE packedByteCount #-}
   packM as = do
     packM (Length (length as))
@@ -905,7 +909,8 @@ instance MemPack a => MemPack [a] where
 instance MemPack a => MemPack (Array a) where
   typeName = "(Array " ++ typeName @a ++ ")"
   packedByteCount arr =
-    packedByteCount (Length (sizeofArray arr)) + getSum (foldMap (Sum . packedByteCount) arr)
+    packedByteCount (Length (sizeofArray arr))
+      + F.foldl' (\acc e -> acc + packedByteCount e) 0 arr
   {-# INLINE packedByteCount #-}
   packM as = do
     packM (Length (length as))

@@ -18,7 +18,11 @@ import GHC.Exts (fromList)
 main :: IO ()
 main = do
   defaultMain
-    [ bgroup "[Int]" [env (pure [1 :: Int .. 100000]) packBench]
+    [ bgroup
+        "packedByteCount"
+        [ env (pure [1 :: Integer .. 1000000]) $ bench "[Integer]" . whnf packedByteCount
+        ]
+    , bgroup "[Int]" [env (pure [1 :: Int .. 100000]) packBench]
     , env (pure $ fromList @(Array Int) [1 :: Int .. 100000]) $ \arr ->
         bgroup
           "Array Int"
