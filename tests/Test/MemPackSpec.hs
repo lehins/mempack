@@ -147,7 +147,7 @@ instance MemPack Backtrack where
   unpackM =
     (IntCase <$> unpackCase 0) <|> (Word16Case <$> unpackCase 1)
     where
-      unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack b a
+      unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack s b a
       unpackCase t = do
         t' <- unpackM
         unless (t == t') $ F.fail "Tag mismatch"
