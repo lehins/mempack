@@ -1,7 +1,8 @@
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- |
 -- Module      : Data.MemPack.Buffer
@@ -16,9 +17,14 @@ import Data.Array.Byte
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short.Internal as SBS
 import qualified Data.ByteString.Internal as BS
+import Data.Primitive.PrimArray (PrimArray(..))
+import Data.Word (Word8)
 import GHC.Exts
 import GHC.ST
 import GHC.ForeignPtr
+#if !MIN_VERSION_primitive(0,8,0)
+import qualified Data.Primitive.ByteArray as Prim (ByteArray(..))
+#endif
 
 -- | Immutable memory buffer
 class Buffer b where
@@ -45,6 +51,15 @@ instance Buffer ByteArray where
   buffer (ByteArray ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
 
+#if !MIN_VERSION_primitive(0,8,0)
+instance Buffer Prim.ByteArray where
+  bufferByteCount (Prim.ByteArray ba#) = I# (sizeofByteArray# ba#)
+  {-# INLINE bufferByteCount #-}
+
+  buffer (Prim.ByteArray ba#) f _ = f ba# 0#
+  {-# INLINE buffer #-}
+#endif
+
 instance Buffer SBS.ShortByteString where
   bufferByteCount = SBS.length
   {-# INLINE bufferByteCount #-}
@@ -60,6 +75,12 @@ instance Buffer BS.ByteString where
     runST $ withPtrByteStringST bs $ \(Ptr addr#) -> pure $! f addr#
   {-# INLINE buffer #-}
 
+instance Buffer (PrimArray Word8) where
+  bufferByteCount (PrimArray ba#) = I# (sizeofByteArray# ba#)
+  {-# INLINE bufferByteCount #-}
+
+  buffer (PrimArray ba#) f _ = f ba# 0#
+  {-# INLINE buffer #-}
 
 newMutableByteArray :: Bool -> Int -> ST s (MutableByteArray s)
 newMutableByteArray isPinned (I# len#) =
