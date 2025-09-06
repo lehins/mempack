@@ -6,6 +6,8 @@
   underlying buffer.
 * Add `Buffer` and `MemPack` instances for `PrimArray` and older definition of `ByteArray` from `primitive`.
 * Add `MemPack` instances for `Array` from `primitive`.
+* Switch `Unpack` monad to be based on the `ST` monad.
+* Add `packLiftST` and `unpackLiftST`
 
 ## 0.1.2.0
 

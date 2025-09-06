@@ -11,6 +11,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnboxedTuples #-}
 
@@ -54,6 +55,8 @@ module Data.MemPack (
   unpackByteArrayLen,
   packByteStringM,
   unpackByteStringM,
+  packLiftST,
+  unpackLiftST,
 
   -- * Helper packers
   VarLen (..),
@@ -81,7 +84,7 @@ import Control.Monad (join, unless, when)
 import qualified Control.Monad.Fail as F
 import Control.Monad.Reader (MonadReader (..), lift)
 import Control.Monad.State.Strict (MonadState (..), StateT (..), execStateT)
-import Control.Monad.Trans.Fail (Fail, FailT (..), errorFail, failT, runFailAgg)
+import Control.Monad.Trans.Fail (Fail, FailT (..), errorFail, failT, runFailAgg, runFailAggT)
 import Data.Array.Byte (ByteArray (..), MutableByteArray (..))
 import Data.Bifunctor (first)
 import Data.Bits (Bits (..), FiniteBits (..))
@@ -172,14 +175,14 @@ instance MonadState Int (Pack s) where
 -- `StateT` that tracks the current index into the @`Buffer` a@, from where the next read
 -- suppose to happen. Unpacking can `F.fail` with `F.MonadFail` instance or with
 -- `failUnpack` that provides a more type safe way of failing using `Error` interface.
-newtype Unpack b a = Unpack
-  { runUnpack :: b -> StateT Int (Fail SomeError) a
+newtype Unpack s b a = Unpack
+  { runUnpack :: b -> StateT Int (FailT SomeError (ST s)) a
   }
 
-instance Functor (Unpack s) where
+instance Functor (Unpack s b) where
   fmap f (Unpack p) = Unpack $ \buf -> fmap f (p buf)
   {-# INLINE fmap #-}
-instance Applicative (Unpack b) where
+instance Applicative (Unpack s b) where
   pure = Unpack . const . pure
   {-# INLINE pure #-}
   Unpack a1 <*> Unpack a2 =
@@ -188,23 +191,23 @@ instance Applicative (Unpack b) where
   Unpack a1 *> Unpack a2 =
     Unpack $ \buf -> a1 buf *> a2 buf
   {-# INLINE (*>) #-}
-instance Monad (Unpack b) where
+instance Monad (Unpack s b) where
   Unpack m1 >>= p =
     Unpack $ \buf -> m1 buf >>= \res -> runUnpack (p res) buf
   {-# INLINE (>>=) #-}
 #if !(MIN_VERSION_base(4,13,0))
   fail = Unpack . const . F.fail
 #endif
-instance F.MonadFail (Unpack b) where
+instance F.MonadFail (Unpack s b) where
   fail = Unpack . const . F.fail
-instance MonadReader b (Unpack b) where
+instance MonadReader b (Unpack s b) where
   ask = Unpack pure
   {-# INLINE ask #-}
   local f (Unpack p) = Unpack (p . f)
   {-# INLINE local #-}
   reader f = Unpack (pure . f)
   {-# INLINE reader #-}
-instance MonadState Int (Unpack b) where
+instance MonadState Int (Unpack s b) where
   get = Unpack $ const get
   {-# INLINE get #-}
   put = Unpack . const . put
@@ -212,7 +215,7 @@ instance MonadState Int (Unpack b) where
   state = Unpack . const . state
   {-# INLINE state #-}
 
-instance Alternative (Unpack b) where
+instance Alternative (Unpack s b) where
   empty = Unpack $ \_ -> lift empty
   {-# INLINE empty #-}
   Unpack r1 <|> Unpack r2 =
@@ -224,7 +227,7 @@ instance Alternative (Unpack b) where
   {-# INLINE (<|>) #-}
 
 -- | Failing unpacking with an `Error`.
-failUnpack :: Error e => e -> Unpack b a
+failUnpack :: Error e => e -> Unpack s b a
 failUnpack e = Unpack $ \_ -> lift $ failT (toSomeError e)
 
 -- | Efficient serialization interface that operates directly on memory buffers.
@@ -251,7 +254,7 @@ class MemPack a where
   -- with advancing the buffer offset with `MonadState` by the number of bytes that will
   -- be consumed from the buffer and making sure that no reads outside of the buffer can
   -- happen. Violation of these rules will lead to segfaults.
-  unpackM :: Buffer b => Unpack b a
+  unpackM :: Buffer b => Unpack s b a
 
 instance MemPack () where
   packedByteCount _ = 0
@@ -1051,7 +1054,7 @@ instance MemPack Text where
 {- FOURMOLU_ENABLE -}
 
 -- | This is the implementation of `unpackM` for `ByteArray`, `ByteString` and `ShortByteString`
-unpackByteArray :: Buffer b => Bool -> Unpack b ByteArray
+unpackByteArray :: Buffer b => Bool -> Unpack s b ByteArray
 unpackByteArray isPinned = unpackByteArrayLen isPinned . unLength =<< unpackM
 {-# INLINE unpackByteArray #-}
 
@@ -1060,7 +1063,7 @@ unpackByteArray isPinned = unpackByteArrayLen isPinned . unLength =<< unpackM
 -- Similar to `unpackByteArray`, except it does not unpack a length.
 --
 -- @since 0.1.1
-unpackByteArrayLen :: Buffer b => Bool -> Int -> Unpack b ByteArray
+unpackByteArrayLen :: Buffer b => Bool -> Int -> Unpack s b ByteArray
 unpackByteArrayLen isPinned len@(I# len#) = do
   I# curPos# <- guardAdvanceUnpack len
   buf <- ask
@@ -1085,7 +1088,7 @@ packIncrement a =
 -- | Increment the offset counter of `Unpack` monad by the supplied number of
 -- bytes. Returns the original offset or fails with `RanOutOfBytesError` whenever there is
 -- not enough bytes in the `Buffer`.
-guardAdvanceUnpack :: Buffer b => Int -> Unpack b Int
+guardAdvanceUnpack :: Buffer b => Int -> Unpack s b Int
 guardAdvanceUnpack n@(I# n#) = do
   buf <- ask
   let !len = bufferByteCount buf
@@ -1097,7 +1100,7 @@ guardAdvanceUnpack n@(I# n#) = do
       _ -> (failOutOfBytes i len n, i)
 {-# INLINE guardAdvanceUnpack #-}
 
-failOutOfBytes :: Int -> Int -> Int -> Unpack b a
+failOutOfBytes :: Int -> Int -> Int -> Unpack s b a
 failOutOfBytes i len n =
   failUnpack $
     toSomeError $
@@ -1224,19 +1227,26 @@ unpackByteStringM ::
   Buffer b =>
   -- | number of bytes to unpack
   Int ->
-  Unpack b ByteString
+  Unpack s b ByteString
 unpackByteStringM len = pinnedByteArrayToByteString <$> unpackByteArrayLen True len
 {-# INLINE unpackByteStringM #-}
 
 -- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides the
 -- unpacked type it also returns an index into a buffer where unpacked has stopped.
 unpackLeftOver :: forall a b. (MemPack a, Buffer b, HasCallStack) => b -> Fail SomeError (a, Int)
-unpackLeftOver b = do
+unpackLeftOver b = FailT $ pure $ runST $ runFailAggT $ unpackLeftOverST b
+{-# INLINE unpackLeftOver #-}
+
+-- | Unpack a memory `Buffer` into a type using its `MemPack` instance. Besides the
+-- unpacked type it also returns an index into a buffer where unpacked has stopped.
+unpackLeftOverST ::
+  forall a b s. (MemPack a, Buffer b, HasCallStack) => b -> FailT SomeError (ST s) (a, Int)
+unpackLeftOverST b = do
   let len = bufferByteCount b
   res@(_, consumedBytes) <- runStateT (runUnpack unpackM b) 0
   when (consumedBytes > len) $ errorLeftOver (typeName @a) consumedBytes len
   pure res
-{-# INLINEABLE unpackLeftOver #-}
+{-# INLINEABLE unpackLeftOverST #-}
 
 -- | This is a critical error, therefore we are not gracefully failing this unpacking
 errorLeftOver :: HasCallStack => String -> Int -> Int -> a
@@ -1401,13 +1411,13 @@ packIntoCont7 x cont n
 unpack7BitVarLen ::
   (Num a, Bits a, Buffer b) =>
   -- | Continuation that will be invoked if MSB is set
-  (Word8 -> a -> Unpack b a) ->
+  (Word8 -> a -> Unpack s b a) ->
   -- | Will be set either to 0 initially or to the very first unmodified byte, which is
   -- guaranteed to have the first bit set.
   Word8 ->
   -- | Accumulator
   a ->
-  Unpack b a
+  Unpack s b a
 unpack7BitVarLen cont firstByte !acc = do
   b8 :: Word8 <- unpackM
   if b8 `testBit` 7
@@ -1417,12 +1427,12 @@ unpack7BitVarLen cont firstByte !acc = do
 {-# INLINE unpack7BitVarLen #-}
 
 unpack7BitVarLenLast ::
-  forall t b.
+  forall t b s.
   (Num t, Bits t, MemPack t, Buffer b) =>
   Word8 ->
   Word8 ->
   t ->
-  Unpack b t
+  Unpack s b t
 unpack7BitVarLenLast mask firstByte acc = do
   res <- unpack7BitVarLen (\_ _ -> F.fail "Too many bytes.") firstByte acc
   -- Only while decoding the last 7bits we check if there was too many
@@ -1493,7 +1503,7 @@ packedTagByteCount :: Int
 packedTagByteCount = SIZEOF_WORD8
 {-# INLINE packedTagByteCount #-}
 
-unpackTagM :: Buffer b => Unpack b Tag
+unpackTagM :: Buffer b => Unpack s b Tag
 unpackTagM = Tag <$> unpackM
 {-# INLINE unpackTagM #-}
 
@@ -1511,3 +1521,17 @@ lift_# f = Pack $ \_ -> lift $ st_ f
 st_ :: (State# s -> State# s) -> ST s ()
 st_ f = ST $ \s# -> (# f s#, () #)
 {-# INLINE st_ #-}
+
+-- | Lift an `ST` action into the `Pack` monad
+--
+-- @since 0.2.0
+packLiftST :: ST s a -> Pack s a
+packLiftST st = Pack (\_ -> StateT (\i -> (,i) <$> st))
+{-# INLINE packLiftST #-}
+
+-- | Lift an `ST` action into the `Unpack` monad
+--
+-- @since 0.2.0
+unpackLiftST :: ST s a -> Unpack s b a
+unpackLiftST st = Unpack (\_ -> StateT (\i -> FailT (Right . (,i) <$> st)))
+{-# INLINE unpackLiftST #-}
