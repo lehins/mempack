@@ -16,7 +16,7 @@
 
 -- |
 -- Module      : Data.MemPack
--- Copyright   : (c) Alexey Kuleshevich 2024
+-- Copyright   : (c) Alexey Kuleshevich 2024-2025
 -- License     : BSD3
 -- Maintainer  : Alexey Kuleshevich <alexey@kuleshevi.ch>
 -- Stability   : experimental
