@@ -79,6 +79,7 @@ module Data.MemPack (
 
 #include "MachDeps.h"
 
+import Data.Foldable (foldMap')
 import Control.Applicative (Alternative (..))
 import Control.Monad (join, unless, when)
 import qualified Control.Monad.Fail as F
@@ -97,7 +98,7 @@ import Data.Complex (Complex (..))
 import Data.List (intercalate)
 import Data.MemPack.Buffer
 import Data.MemPack.Error
-import Data.Primitive.Array (Array (..), arrayFromListN, sizeofArray)
+import Data.Primitive.Array (Array (..), newArray, sizeofArray, unsafeFreezeArray, writeArray)
 import Data.Primitive.PrimArray (PrimArray (..), sizeofPrimArray)
 import Data.Primitive.Types (Prim (sizeOf#))
 import Data.Ratio
@@ -912,8 +913,13 @@ instance MemPack a => MemPack (Array a) where
   {-# INLINE packM #-}
   unpackM = do
     Length n <- unpackM
-    xs <- replicateTailM n unpackM
-    pure $ arrayFromListN n xs
+    marr <- unpackLiftST (newArray n (error "Uninitialized"))
+    let fill !i = when (i < n) $ do
+          e <- unpackM
+          unpackLiftST (writeArray marr i e)
+          fill (i + 1)
+    fill 0
+    unpackLiftST (unsafeFreezeArray marr)
   {-# INLINE unpackM #-}
 
 -- | Tail recursive version of `replicateM`
