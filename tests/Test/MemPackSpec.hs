@@ -27,6 +27,7 @@ import Data.Int
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Primitive.PrimArray (PrimArray(..))
 import Data.Ratio
 import Data.Text (Text)
 import Data.Word
@@ -196,6 +197,7 @@ memPackSpec =
       it "ByteArray" $ failOnEmpty (mempty :: ByteArray)
       it "ByteString" $ failOnEmpty (mempty :: ByteString)
       it "ShortByteString" $ failOnEmpty (mempty :: ShortByteString)
+      it "PrimArray" $ failOnEmpty (mempty :: PrimArray Word8)
     prop "Fail on too much" $ expectNotFullyConsumed @a
 
 spec :: Spec

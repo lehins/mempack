@@ -4,6 +4,7 @@
 
 * Add an offset to the `buffer` function in order to support types that don't use the full
   underlying buffer.
+* Add `Buffer` instances for `PrimArray` and older definition of `ByteArray` from `primitive`.
 
 ## 0.1.2.0
 
