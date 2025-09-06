@@ -92,6 +92,7 @@ benchmark bench
                      , criterion
                      , flat
                      , mempack
+                     , primitive
                      , serialise
                      , store
                      , vector
