@@ -16,6 +16,8 @@ import Data.Primitive.Array (Array)
 import Data.Primitive.PrimArray (PrimArray (..), primArrayFromList)
 import Data.Primitive.Types (Prim)
 import qualified Data.Text as T
+import qualified Data.Vector.Generic as VG (fromList)
+import qualified Data.Vector.Primitive as VP (Vector (..), drop)
 import GHC.Exts (fromList)
 import System.Random.Stateful
 import Test.Hspec as X
@@ -60,6 +62,11 @@ instance (Prim a, Arbitrary a) => Arbitrary (PrimArray a) where
 
 instance Arbitrary a => Arbitrary (Array a) where
   arbitrary = fromList <$> arbitrary
+
+instance (Prim a, Arbitrary a) => Arbitrary (VP.Vector a) where
+  arbitrary = do
+    v <- VG.fromList <$> arbitrary
+    frequency [(5, pure v), (5, flip VP.drop v . getNonNegative <$> arbitrary)]
 
 qcByteArray :: Int -> Gen ByteArray
 qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n

@@ -31,6 +31,7 @@ import Data.Primitive.Array (Array)
 import Data.Primitive.PrimArray (PrimArray (..))
 import Data.Ratio
 import Data.Text (Text)
+import qualified Data.Vector.Primitive as VP (Vector (..))
 import Data.Word
 import Foreign.Ptr (IntPtr (..), Ptr, intPtrToPtr)
 import Foreign.StablePtr (StablePtr, castPtrToStablePtr, castStablePtrToPtr)
@@ -199,6 +200,7 @@ memPackSpec =
       it "ByteString" $ failOnEmpty (mempty :: ByteString)
       it "ShortByteString" $ failOnEmpty (mempty :: ShortByteString)
       it "PrimArray" $ failOnEmpty (mempty :: PrimArray Word8)
+      it "VP.Vector" $ failOnEmpty (mempty :: VP.Vector Word8)
     prop "Fail on too much" $ expectNotFullyConsumed @a
 
 spec :: Spec

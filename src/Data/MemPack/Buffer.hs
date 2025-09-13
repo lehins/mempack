@@ -25,6 +25,7 @@ import GHC.ST
 #if !MIN_VERSION_primitive(0,8,0)
 import qualified Data.Primitive.ByteArray as Prim (ByteArray(..))
 #endif
+import qualified Data.Vector.Primitive as VP (Vector (..))
 
 -- | Immutable memory buffer
 class Buffer b where
@@ -80,6 +81,13 @@ instance Buffer (PrimArray Word8) where
   {-# INLINE bufferByteCount #-}
 
   buffer (PrimArray ba#) f _ = f ba# 0#
+  {-# INLINE buffer #-}
+
+instance Buffer (VP.Vector Word8) where
+  bufferByteCount (VP.Vector _ len _) = len
+  {-# INLINE bufferByteCount #-}
+
+  buffer (VP.Vector (I# off#) _ ba) f = buffer ba (\ba# _ -> f ba# off#)
   {-# INLINE buffer #-}
 
 newMutableByteArray :: Bool -> Int -> ST s (MutableByteArray s)
