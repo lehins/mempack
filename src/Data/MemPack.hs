@@ -250,10 +250,12 @@ class MemPack a where
   packM :: a -> Pack s ()
 
   -- | Read binary representation of the type directly from the buffer, which can be
-  -- accessed with `ask` when necessary. Direct reads from the buffer should be preceded
-  -- with advancing the buffer offset with `MonadState` by the number of bytes that will
-  -- be consumed from the buffer and making sure that no reads outside of the buffer can
-  -- happen. Violation of these rules will lead to segfaults.
+  -- accessed with `ask` when necessary.
+  --
+  -- /Warning/ - Direct reads from the buffer should be preceded with advancing the buffer offset
+  -- within `MonadState` by the exact number of bytes that gets consumed from that buffer.
+  --
+  -- __⚠__ - Violation of the above rule will lead to segfaults.
   unpackM :: Buffer b => Unpack s b a
 
 instance MemPack () where
@@ -1227,7 +1229,7 @@ packByteStringM :: ByteString -> Pack s ()
 packByteStringM bs = do
   let !len@(I# len#) = bufferByteCount bs
   I# curPos# <- state $ \i -> (i, i + len)
-  Pack $ \(MutableByteArray mba#) -> lift $ withPtrByteStringST bs $ \(Ptr addr#) ->
+  Pack $ \(MutableByteArray mba#) -> lift $ withAddrByteStringST bs $ \addr# ->
     st_ (copyAddrToByteArray# addr# mba# curPos# len#)
 {-# INLINE packByteStringM #-}
 

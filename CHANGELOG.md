@@ -8,6 +8,8 @@
 * Add `MemPack` instances for `Array` from `primitive`.
 * Switch `Unpack` monad to be based on the `ST` monad.
 * Add `packLiftST` and `unpackLiftST`
+* Add `withForeignPtrST` and `withAddrByteStringST`
+* Add `Buffer` instances for primitive and storable `Vector`s
 
 ## 0.1.2.0
 
