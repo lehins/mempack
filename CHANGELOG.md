@@ -2,6 +2,7 @@
 
 ## 0.2.0.0
 
+* Add `mkBuffer`, `bufferHasToBePinned` and `packBuffer`
 * Add an offset to the `buffer` function in order to support types that don't use the full
   underlying buffer.
 * Add `Buffer` and `MemPack` instances for `PrimArray` and older definition of `ByteArray` from `primitive`.

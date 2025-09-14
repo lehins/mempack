@@ -194,7 +194,7 @@ jobs:
       run: |
         set -ex
         cabal install doctest --ignore-project --overwrite-policy=always
-        cabal repl --build-depends=QuickCheck --with-compiler=doctest --repl-options='-w -Wdefault'
+        cabal repl --build-depends=QuickCheck --build-depends=vector --with-compiler=doctest --repl-options='-w -Wdefault'
     - name: Check Cabal Files
       run: |
         set -ex

@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -38,7 +39,12 @@ import GHC.ST
 import qualified Data.Primitive.ByteArray as Prim (ByteArray(..))
 #endif
 import qualified Data.Vector.Primitive as VP (Vector (..))
-import qualified Data.Vector.Storable as VS (Vector, length, unsafeToForeignPtr0)
+import qualified Data.Vector.Storable as VS (
+  Vector,
+  length,
+  unsafeFromForeignPtr0,
+  unsafeToForeignPtr0,
+ )
 
 -- | Immutable memory buffer
 class Buffer b where
@@ -58,58 +64,79 @@ class Buffer b where
     (Addr# -> a) ->
     a
 
+  mkBuffer :: ByteArray# -> b
+
+  bufferHasToBePinned :: Bool
+
 instance Buffer ByteArray where
   bufferByteCount (ByteArray ba#) = I# (sizeofByteArray# ba#)
   {-# INLINE bufferByteCount #-}
-
   buffer (ByteArray ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
+  mkBuffer ba# = ByteArray ba#
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = False
 
 #if !MIN_VERSION_primitive(0,8,0)
 instance Buffer Prim.ByteArray where
   bufferByteCount (Prim.ByteArray ba#) = I# (sizeofByteArray# ba#)
   {-# INLINE bufferByteCount #-}
-
   buffer (Prim.ByteArray ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
+  mkBuffer ba# = Prim.ByteArray ba#
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = False
 #endif
 
 instance Buffer SBS.ShortByteString where
   bufferByteCount = SBS.length
   {-# INLINE bufferByteCount #-}
-
   buffer (SBS.SBS ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
+  mkBuffer ba# = SBS.SBS ba#
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = False
 
 instance Buffer BS.ByteString where
   bufferByteCount = BS.length
   {-# INLINE bufferByteCount #-}
-
   buffer bs _f g =
     runST $ withAddrByteStringST bs $ \addr# -> pure (g addr#)
   {-# INLINE buffer #-}
+  mkBuffer ba# = pinnedByteArrayToByteString (ByteArray ba#)
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = True
 
 instance Buffer (PrimArray Word8) where
   bufferByteCount (PrimArray ba#) = I# (sizeofByteArray# ba#)
   {-# INLINE bufferByteCount #-}
-
   buffer (PrimArray ba#) f _ = f ba# 0#
   {-# INLINE buffer #-}
+  mkBuffer ba# = PrimArray ba#
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = False
 
 instance Buffer (VP.Vector Word8) where
   bufferByteCount (VP.Vector _ len _) = len
   {-# INLINE bufferByteCount #-}
-
   buffer (VP.Vector (I# off#) _ ba) f = buffer ba (\ba# _ -> f ba# off#)
   {-# INLINE buffer #-}
+  mkBuffer ba# =
+    let ba = mkBuffer ba#
+     in VP.Vector 0 (bufferByteCount ba) ba
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = False
 
 instance Buffer (VS.Vector Word8) where
   bufferByteCount = VS.length
   {-# INLINE bufferByteCount #-}
-
   buffer v _f g =
     runST $ withForeignPtrST (fst $ VS.unsafeToForeignPtr0 v) $ \addr# -> pure (g addr#)
   {-# INLINE buffer #-}
+  mkBuffer ba# =
+    VS.unsafeFromForeignPtr0 (pinnedByteArrayToForeignPtr ba#) (I# (sizeofByteArray# ba#))
+  {-# INLINE mkBuffer #-}
+  bufferHasToBePinned = True
 
 -- | Allocate a new uninitialized `MutableByteArray`.
 --
