@@ -29,6 +29,7 @@ module Data.MemPack (
 
   -- * Packing
   pack,
+  packBuffer,
   packByteString,
   packShortByteString,
 
@@ -1052,7 +1053,9 @@ instance MemPack Text where
     MutableByteArray mba# <- ask
     lift_# (copyByteArray# ba# offset# mba# curPos# len#)
 #else
-  -- FIXME: This is very inefficient and shall be fixed in the next major version
+  -- FIXME: This is very inefficient and hopefully will be fixed at some point.  It requires some
+  -- clever change to the MemPack interface in order to allow memoization between `packedByteCount`
+  -- and `packM`
   packedByteCount = packedByteCount . T.encodeUtf8
   packM = packM . T.encodeUtf8
 #endif
@@ -1139,6 +1142,27 @@ pack = packByteArray False
 packByteString :: forall a. (MemPack a, HasCallStack) => a -> ByteString
 packByteString = pinnedByteArrayToByteString . packByteArray True
 {-# INLINE packByteString #-}
+
+-- | Serialize a type into any `Buffer`
+--
+-- prop> pack xs == packBuffer xs
+--
+-- prop> packByteString xs == packBuffer xs
+--
+-- ====__Examples__
+--
+-- >>> :set -XTypeApplications
+-- >>> import qualified Data.Vector.Primitive as VP
+-- >>> import Data.Word (Word8)
+-- >>> unpack @[Int] $ packBuffer @[Int] @(VP.Vector Word8) [1,2,3,4,5]
+-- Right [1,2,3,4,5]
+--
+-- @since 0.2.0
+packBuffer :: forall a b. (MemPack a, Buffer b, HasCallStack) => a -> b
+packBuffer a =
+  case packByteArray (bufferHasToBePinned @b) a of
+    ByteArray ba -> mkBuffer ba
+{-# INLINE packBuffer #-}
 
 -- | Serialize a type into an unpinned `ShortByteString`
 packShortByteString :: forall a. (MemPack a, HasCallStack) => a -> ShortByteString
