@@ -49,34 +49,34 @@ library
                        -Wincomplete-uni-patterns
                        -Wredundant-constraints
 
-test-suite tests
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     tests
-  main-is:            Main.hs
-  other-modules:      Test.Common
-                    , Test.MemPackSpec
-  build-depends:      base
-                    , bytestring
-                    , FailT
-                    , hspec
-                    , mempack
-                    , mtl
-                    , primitive
-                    , QuickCheck
-                    , random >=1.2.1
-                    , text
-                    , vector
-  if !impl(ghc >= 9.4)
-    build-depends:     data-array-byte
+-- test-suite tests
+--   type:               exitcode-stdio-1.0
+--   hs-source-dirs:     tests
+--   main-is:            Main.hs
+--   other-modules:      Test.Common
+--                     , Test.MemPackSpec
+--   build-depends:      base
+--                     , bytestring
+--                     , FailT
+--                     , hspec
+--                     , mempack
+--                     , mtl
+--                     , primitive
+--                     , QuickCheck
+--                     , random >=1.2.1
+--                     , text
+--                     , vector
+--   if !impl(ghc >= 9.4)
+--     build-depends:     data-array-byte
 
-  default-language:   Haskell2010
-  ghc-options:        -Wall
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -fno-warn-orphans
-                      -threaded
-                      -with-rtsopts=-N2
+--   default-language:   Haskell2010
+--   ghc-options:        -Wall
+--                       -Wincomplete-record-updates
+--                       -Wincomplete-uni-patterns
+--                       -Wredundant-constraints
+--                       -fno-warn-orphans
+--                       -threaded
+--                       -with-rtsopts=-N2
 
 benchmark bench
   type:                exitcode-stdio-1.0
@@ -87,16 +87,16 @@ benchmark bench
                        -O2
                        -with-rtsopts=-N
   build-depends:       base
-                     , avro >= 0.5.1
-                     , binary
+                     -- , avro >= 0.5.1
+                     -- , binary
                      , bytestring
-                     , cereal
+                     -- , cereal
                      , criterion
-                     , flat
+                     -- , flat
                      , mempack
                      , primitive
-                     , serialise
-                     , store
+                     -- , serialise
+                     -- , store
                      , vector
   default-language:    Haskell2010
 

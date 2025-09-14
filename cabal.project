@@ -11,3 +11,20 @@ if impl(ghc >= 9.0) || impl(ghc < 9.2)
 if impl(ghc < 8.8)
   constraints:
     store == 0.7.18
+if impl(ghc >= 9.14)
+  allow-newer:
+    , *:base
+    , *:ghc-prim
+    , *:ghc-bignum
+    , *:template-haskell
+    , aeson:*
+  constraints:
+    , aeson >= 2.2.3
+    , bytestring >= 0.12.2
+
+
+
+source-repository-package
+  type: git
+  location: https://github.com/lehins/statistics
+  tag: 7816c146595c63214692fd60aff55798fb61b8b6

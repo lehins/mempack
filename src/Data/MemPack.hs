@@ -894,11 +894,19 @@ instance
 instance MemPack a => MemPack [a] where
   typeName = "[" ++ typeName @a ++ "]"
   packedByteCount es =
-    let go [] (# listLen#, elemsLen# #) = packedByteCount (Length (I# listLen#)) + (I# elemsLen#)
-        go (x : xs) (# listLen#, elemsLen# #) =
+    let go [] lengthsX2# =
+          case unpackInt64X2# lengthsX2# of
+            (# listLen#, elemsLen# #) ->
+              packedByteCount (Length (I# (int64ToInt# listLen#))) + I# (int64ToInt# elemsLen#)
+        go (x : xs) lengthsX2# =
           let !(I# bc#) = packedByteCount x
-           in go xs (# 1# +# listLen#, bc# +# elemsLen# #)
-     in go es (# 0#, 0# #)
+           in go xs (packInt64X2# (# intToInt64# 1#, intToInt64# bc# #) `plusInt64X2#` lengthsX2#)
+     in go es (packInt64X2# (# intToInt64# 0#, intToInt64# 0# #))
+    -- let go [] (# listLen#, elemsLen# #) = packedByteCount (Length (I# listLen#)) + (I# elemsLen#)
+    --     go (x : xs) (# listLen#, elemsLen# #) =
+    --       let !(I# bc#) = packedByteCount x
+    --        in go xs (# 1# +# listLen#, bc# +# elemsLen# #)
+    --  in go es (# 0#, 0# #)
   {-# INLINE packedByteCount #-}
   packM as = do
     packM (Length (length as))
