@@ -9,10 +9,17 @@ module Test.Common (
 
 import Data.Array.Byte (ByteArray (..))
 import Data.ByteString (ByteString)
-import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import qualified Data.ByteString.Lazy as BSL
+import Data.ByteString.Short.Internal as SBS (ShortByteString (..))
 import Data.MemPack.Buffer (byteArrayFromShortByteString)
+import Data.Primitive.Array (Array)
+import Data.Primitive.PrimArray (PrimArray (..), primArrayFromList)
+import Data.Primitive.Types (Prim)
 import qualified Data.Text as T
+import qualified Data.Vector.Generic as VG (fromList)
+import qualified Data.Vector.Primitive as VP (Vector (..), drop)
+import qualified Data.Vector.Storable as VS (Storable, Vector, drop)
+import GHC.Exts (fromList)
 import System.Random.Stateful
 import Test.Hspec as X
 import Test.Hspec.QuickCheck as X
@@ -50,6 +57,22 @@ instance Arbitrary BSL.ByteString where
 
 instance Arbitrary T.Text where
   arbitrary = T.pack <$> arbitrary
+
+instance (Prim a, Arbitrary a) => Arbitrary (PrimArray a) where
+  arbitrary = primArrayFromList <$> arbitrary
+
+instance Arbitrary a => Arbitrary (Array a) where
+  arbitrary = fromList <$> arbitrary
+
+instance (Prim a, Arbitrary a) => Arbitrary (VP.Vector a) where
+  arbitrary = do
+    v <- VG.fromList <$> arbitrary
+    frequency [(5, pure v), (5, flip VP.drop v . getNonNegative <$> arbitrary)]
+
+instance (VS.Storable a, Arbitrary a) => Arbitrary (VS.Vector a) where
+  arbitrary = do
+    v <- VG.fromList <$> arbitrary
+    frequency [(5, pure v), (5, flip VS.drop v . getNonNegative <$> arbitrary)]
 
 qcByteArray :: Int -> Gen ByteArray
 qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n

@@ -28,28 +28,31 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
-        resolver: [lts-14, lts-16, lts-18, lts-19, lts-20, lts-21, lts-22, lts-23, nightly]
+        resolver: [lts-14, lts-16, lts-18, lts-19, lts-20, lts-21, lts-22, lts-23, lts-24, nightly]
         include:
           - resolver: lts-14
-            ghc: 8.6.5
+            ghc: "8.6.5"
           - resolver: lts-16
-            ghc: 8.8.4
+            ghc: "8.8.4"
           - resolver: lts-18
-            ghc: 8.10.7
+            ghc: "8.10.7"
           - resolver: lts-19
-            ghc: 9.0.2
+            ghc: "9.0.2"
           - resolver: lts-20
-            ghc: 9.2.8
+            ghc: "9.2.8"
           - resolver: lts-21
-            ghc: 9.4.8
+            ghc: "9.4.8"
             stack-yaml: stack-coveralls.yaml
           - resolver: lts-22
-            ghc: 9.6.7
+            ghc: "9.6.7"
           - resolver: lts-23
-            ghc: 9.8.4
+            ghc: "9.8.4"
+            stack-yaml: stack.yaml
+          - resolver: lts-24
+            ghc: "9.10.3"
             stack-yaml: stack.yaml
           - resolver: nightly
-            ghc: 9.10.1
+            ghc: "9.12.2"
             stack-yaml: stack.yaml
         exclude:
           # Newer MacOS does not support older GHC:
@@ -136,22 +139,22 @@ jobs:
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.4.8" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.8.4" }
-          - { cabal: "3.14", os: ubuntu-latest, ghc: "9.10.1" }
-          # - { cabal: "3.14", os: ubuntu-latest, ghc: "9.12.1" }
+          - { cabal: "3.14", os: ubuntu-latest, ghc: "9.10.3" }
+          - { cabal: "3.14", os: ubuntu-latest, ghc: "9.12.2" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.0.2" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.4.8" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.8.4" }
-          - { cabal: "3.14", os: windows-latest, ghc: "9.10.1" }
-          # - { cabal: "3.14", os: windows-latest, ghc: "9.12.1" }
+          - { cabal: "3.14", os: windows-latest, ghc: "9.10.3" }
+          - { cabal: "3.14", os: windows-latest, ghc: "9.12.2" }
           - { cabal: "3.14", os: macOS-13, ghc: "9.0.2" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.4.8" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.8.4" }
-          - { cabal: "3.14", os: macOS-latest, ghc: "9.10.1" }
-          # - { cabal: "3.14", os: macOS-latest, ghc: "9.12.1" }
+          - { cabal: "3.14", os: macOS-latest, ghc: "9.10.3" }
+          - { cabal: "3.14", os: macOS-latest, ghc: "9.12.2" }
 
     env:
       cache-version: v0 # bump up this version to invalidate currently stored cache
@@ -191,7 +194,7 @@ jobs:
       run: |
         set -ex
         cabal install doctest --ignore-project --overwrite-policy=always
-        cabal repl --build-depends=QuickCheck --with-compiler=doctest --repl-options='-w -Wdefault'
+        cabal repl --build-depends=QuickCheck --build-depends=vector --with-compiler=doctest --repl-options='-w -Wdefault'
     - name: Check Cabal Files
       run: |
         set -ex

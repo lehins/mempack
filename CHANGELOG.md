@@ -1,5 +1,17 @@
 # Changelog for `mempack`
 
+## 0.2.0.0
+
+* Add `mkBuffer`, `bufferHasToBePinned` and `packBuffer`
+* Add an offset to the `buffer` function in order to support types that don't use the full
+  underlying buffer.
+* Add `Buffer` and `MemPack` instances for `PrimArray` and older definition of `ByteArray` from `primitive`.
+* Add `MemPack` instances for `Array` from `primitive`.
+* Switch `Unpack` monad to be based on the `ST` monad.
+* Add `packLiftST` and `unpackLiftST`
+* Add `withForeignPtrST` and `withAddrByteStringST`
+* Add `Buffer` instances for primitive and storable `Vector`s
+
 ## 0.1.2.0
 
 * Fix 32-bit support

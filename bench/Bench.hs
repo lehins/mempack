@@ -9,30 +9,30 @@ import qualified Data.Binary as Binary
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.ByteString.Short (fromShort, toShort)
 import Data.MemPack
+import Data.Primitive.Array (Array)
 import qualified Data.Serialize as Cereal
 import qualified Data.Store as Store
 import qualified Flat as Flat
+import GHC.Exts (fromList)
 
 main :: IO ()
 main = do
   defaultMain
-    [ env (pure [1 :: Int .. 100000]) $ \xs ->
+    [ bgroup
+        "packedByteCount"
+        [ env (pure [1 :: Integer .. 1000000]) $ bench "[Integer]" . whnf packedByteCount
+        ]
+    , bgroup "[Int]" [env (pure [1 :: Int .. 100000]) packBench]
+    , env (pure $ fromList @(Array Int) [1 :: Int .. 100000]) $ \arr ->
         bgroup
-          "Pack"
-          [ bgroup
-              "ByteString"
-              [ bench "MemPack" $ nf packByteString xs
-              , bench "Store" $ nf Store.encode xs
-              , bench "Flat" $ nf Flat.flat xs
-              , bench "Cereal" $ nf Cereal.encode xs
-              , bench "Binary" $ nf (toStrict . Binary.encode) xs
-              , bench "Serialise" $ nf (toStrict . Serialise.serialise) xs
-              , bench "Avro" $ nf (toStrict . Avro.encodeValue) xs
-              ]
+          "Array Int"
+          [ bench "Pack" $ nf packByteString arr
+          , env (pure (packByteString arr)) (bench "Unpack" . nf (unpackError @(Array Int)))
+          , bench "RoundTrip" $ nf (unpackError @(Array Int) . packShortByteString) arr
           ]
     , env (pure [1 :: Int .. 100000]) $ \xs ->
         bgroup
-          "RoundTrip"
+          "RoundTrip List Through"
           [ bgroup
               "ByteString"
               [ bench "MemPack" $ nf (unpackError @[Int] . packByteString) xs
@@ -75,4 +75,30 @@ main = do
                     xs
               ]
           ]
+    ]
+
+packBench ::
+  ( MemPack a
+  , Store.Store a
+  , Flat.Flat a
+  , Cereal.Serialize a
+  , Binary.Binary a
+  , Serialise.Serialise a
+  , Avro.HasAvroSchema a
+  , Avro.ToAvro a
+  ) =>
+  a -> Benchmark
+packBench xs =
+  bgroup
+    "Pack"
+    [ bgroup
+        "ByteString"
+        [ bench "MemPack" $ nf packByteString xs
+        , bench "Store" $ nf Store.encode xs
+        , bench "Flat" $ nf Flat.flat xs
+        , bench "Cereal" $ nf Cereal.encode xs
+        , bench "Binary" $ nf (toStrict . Binary.encode) xs
+        , bench "Serialise" $ nf (toStrict . Serialise.serialise) xs
+        , bench "Avro" $ nf (toStrict . Avro.encodeValue) xs
+        ]
     ]

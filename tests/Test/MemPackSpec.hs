@@ -18,8 +18,8 @@ import qualified Control.Monad.Fail as F
 import Data.Array.Byte (ByteArray)
 import Data.Bits
 import Data.ByteString (ByteString)
-import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Lazy as BSL
+import Data.ByteString.Short (ShortByteString)
 import Data.Complex
 import Data.Either (isLeft)
 import Data.Function (fix)
@@ -27,8 +27,11 @@ import Data.Int
 import Data.MemPack
 import Data.MemPack.Buffer
 import Data.MemPack.Error
+import Data.Primitive.Array (Array)
+import Data.Primitive.PrimArray (PrimArray (..))
 import Data.Ratio
 import Data.Text (Text)
+import qualified Data.Vector.Primitive as VP (Vector (..))
 import Data.Word
 import Foreign.Ptr (IntPtr (..), Ptr, intPtrToPtr)
 import Foreign.StablePtr (StablePtr, castPtrToStablePtr, castStablePtrToPtr)
@@ -145,7 +148,7 @@ instance MemPack Backtrack where
   unpackM =
     (IntCase <$> unpackCase 0) <|> (Word16Case <$> unpackCase 1)
     where
-      unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack b a
+      unpackCase :: (Buffer b, MemPack a) => Tag -> Unpack s b a
       unpackCase t = do
         t' <- unpackM
         unless (t == t') $ F.fail "Tag mismatch"
@@ -196,6 +199,8 @@ memPackSpec =
       it "ByteArray" $ failOnEmpty (mempty :: ByteArray)
       it "ByteString" $ failOnEmpty (mempty :: ByteString)
       it "ShortByteString" $ failOnEmpty (mempty :: ShortByteString)
+      it "PrimArray" $ failOnEmpty (mempty :: PrimArray Word8)
+      it "VP.Vector" $ failOnEmpty (mempty :: VP.Vector Word8)
     prop "Fail on too much" $ expectNotFullyConsumed @a
 
 spec :: Spec
@@ -240,7 +245,8 @@ spec = do
   memPackSpec @ByteArray
   memPackSpec @ByteString
   memPackSpec @BSL.ByteString
-  memPackSpec @ByteArray
+  memPackSpec @(PrimArray Char)
+  memPackSpec @(Array Integer)
   memPackSpec @Text
   memPackSpec @Backtrack
   prop "Out of bound char" $ forAll (choose (0x110000, maxBound :: Word32)) $ \w32 ->

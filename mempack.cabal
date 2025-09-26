@@ -1,5 +1,5 @@
 name:                mempack
-version:             0.1.2.0
+version:             0.2.0.0
 synopsis:            Short description
 description:         Please see the README on GitHub at <https://github.com/lehins/mempack#readme>
 homepage:            https://github.com/lehins/mempack
@@ -7,7 +7,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Alexey Kuleshevich
 maintainer:          alexey@kuleshevi.ch
-copyright:           2024 Alexey Kuleshevich
+copyright:           2024-2025 Alexey Kuleshevich
 category:            Algorithms
 build-type:          Simple
 extra-source-files:  README.md
@@ -21,8 +21,8 @@ tested-with:         GHC == 8.6.5
                    , GHC == 9.4.8
                    , GHC == 9.6.7
                    , GHC == 9.8.4
-                   , GHC == 9.10.1
-                   , GHC == 9.12.1
+                   , GHC == 9.10.3
+                   , GHC == 9.12.2
 
 library
   hs-source-dirs:      src
@@ -31,11 +31,13 @@ library
                      , Data.MemPack.Error
 
   other-modules:
-  build-depends:       base >= 4.12 && < 5
+  build-depends:       base >=4.12 && <5
                      , bytestring
                      , FailT
+                     , primitive >=0.6.4
                      , mtl
                      , text
+                     , vector >=0.10.12
   if !impl(ghc >= 9.4)
     build-depends:     data-array-byte
   if !impl(ghc >= 9.0)
@@ -59,9 +61,11 @@ test-suite tests
                     , hspec
                     , mempack
                     , mtl
+                    , primitive
                     , QuickCheck
                     , random >=1.2.1
                     , text
+                    , vector
   if !impl(ghc >= 9.4)
     build-depends:     data-array-byte
 
@@ -90,6 +94,7 @@ benchmark bench
                      , criterion
                      , flat
                      , mempack
+                     , primitive
                      , serialise
                      , store
                      , vector
