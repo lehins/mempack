@@ -1,5 +1,5 @@
 name:                mempack
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Short description
 description:         Please see the README on GitHub at <https://github.com/lehins/mempack#readme>
 homepage:            https://github.com/lehins/mempack
@@ -28,6 +28,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.MemPack
                      , Data.MemPack.Buffer
+                     , Data.MemPack.Endian
                      , Data.MemPack.Error
 
   other-modules:
