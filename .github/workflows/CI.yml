@@ -218,3 +218,21 @@ jobs:
         source ~/.ghcup/env
         cabal update
         cabal test
+
+  wasm32:
+    name: Wasm32 (ubuntu-latest, ghc-9.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Set up wasm32-wasi (ghc-9.10)"
+        run: |
+          curl https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/raw/master/bootstrap.sh | FLAVOUR="9.10" sh
+          ~/.ghc-wasm/add_to_github_path.sh
+      - name: "Build"
+        run: |
+          wasm32-wasi-cabal update
+          wasm32-wasi-cabal build
+      - name: "Test"
+        run: |
+          wasmtime "$(env -u CABAL_CONFIG wasm32-wasi-cabal list-bin test:tests | tail -n1)"
+
