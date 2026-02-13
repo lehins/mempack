@@ -1,5 +1,9 @@
 # Changelog for `mempack`
 
+## 0.2.1.0
+
+* Support building with `wasm`
+
 ## 0.2.0.0
 
 * Add `mkBuffer`, `bufferHasToBePinned` and `packBuffer`
