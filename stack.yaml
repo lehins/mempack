@@ -1,3 +1,1 @@
-snapshot: lts-22.34
-packages:
-- .
+stack.ghc-9.6.7.yaml

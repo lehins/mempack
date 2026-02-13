@@ -1,5 +1,5 @@
 name:                mempack
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Short description
 description:         Please see the README on GitHub at <https://github.com/lehins/mempack#readme>
 homepage:            https://github.com/lehins/mempack
@@ -23,6 +23,7 @@ tested-with:         GHC == 8.6.5
                    , GHC == 9.8.4
                    , GHC == 9.10.3
                    , GHC == 9.12.2
+                   , GHC == 9.14.1
 
 library
   hs-source-dirs:      src
@@ -70,20 +71,14 @@ test-suite tests
     build-depends:     data-array-byte
 
   default-language:   Haskell2010
-  if arch(wasm32)
+  ghc-options:
+                    -Wall
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -fno-warn-orphans
+  if !arch(wasm32)
     ghc-options:
-                      -Wall
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -fno-warn-orphans
-  else
-    ghc-options:
-                      -Wall
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -fno-warn-orphans
                       -threaded
                       -with-rtsopts=-N2
 
@@ -91,14 +86,11 @@ benchmark bench
   type:                exitcode-stdio-1.0
   hs-source-dirs:      bench
   main-is:             Bench.hs
-  if arch(wasm32)
+  ghc-options:
+                    -Wall
+                     -O2
+  if !arch(wasm32)
     ghc-options:
-                      -Wall
-                       -O2
-  else
-    ghc-options:
-                      -Wall
-                      -O2
                       -threaded
                       -with-rtsopts=-N
 

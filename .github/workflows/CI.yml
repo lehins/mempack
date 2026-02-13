@@ -64,6 +64,8 @@ jobs:
             os: macOS-latest
           - resolver: lts-19
             os: macOS-latest
+          - resolver: nightly
+            os: windows-latest
 
     env:
       STACK_YAML: ${{ matrix.stack-yaml || matrix.ghc != '' && format('stack.ghc-{0}.yaml', matrix.ghc) || 'stack.yaml' }}
@@ -141,6 +143,7 @@ jobs:
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.10.3" }
           - { cabal: "3.14", os: ubuntu-latest, ghc: "9.12.2" }
+          # - { cabal: "3.14", os: ubuntu-latest, ghc: "9.14.1" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.0.2" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.4.8" }
@@ -148,13 +151,16 @@ jobs:
           - { cabal: "3.14", os: windows-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.10.3" }
           - { cabal: "3.14", os: windows-latest, ghc: "9.12.2" }
-          - { cabal: "3.14", os: macOS-13, ghc: "9.0.2" }
+          # - { cabal: "3.14", os: windows-latest, ghc: "9.14.1" }
+          - { cabal: "3.14", os: macOS-15-intel, ghc: "8.10.7" }
+          - { cabal: "3.14", os: macOS-15-intel, ghc: "9.0.2" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.2.8" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.4.8" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.6.7" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.8.4" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.10.3" }
           - { cabal: "3.14", os: macOS-latest, ghc: "9.12.2" }
+          # - { cabal: "3.14", os: macOS-latest, ghc: "9.14.1" }
 
     env:
       cache-version: v0 # bump up this version to invalidate currently stored cache

@@ -11,3 +11,24 @@ if impl(ghc >= 9.0) || impl(ghc < 9.2)
 if impl(ghc < 8.8)
   constraints:
     store == 0.7.18
+
+-- if impl(ghc >= 9.14)
+--   allow-newer:
+--     , indexed-traversable:base
+--     , indexed-traversable:containers
+--     , serialise:base
+--     , these:base
+--     , cborg:base
+--     , criterion:aeson
+--     , microstache:base
+--     , microstache:containers
+--     , binary:containers
+--     , serialise:containers
+--     , cborg:containers
+--     , binary-orphans:base
+--     , indexed-traversable-instances:base
+--     , semialign:base
+--     , semialign:containers
+--     , aeson:*
+--     , uuid-types:template-haskell
+--     , serialise:time

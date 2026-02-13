@@ -43,8 +43,13 @@ instance StatefulGen QC Gen where
   {-# INLINE uniformShortByteString #-}
 #endif
 
+#if !MIN_VERSION_QuickCheck(2,17,0)
 instance Arbitrary ByteArray where
   arbitrary = qcByteArray . getNonNegative =<< arbitrary
+
+qcByteArray :: Int -> Gen ByteArray
+qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n
+#endif
 
 instance Arbitrary ByteString where
   arbitrary = qcByteString . getNonNegative =<< arbitrary
@@ -73,9 +78,6 @@ instance (VS.Storable a, Arbitrary a) => Arbitrary (VS.Vector a) where
   arbitrary = do
     v <- VG.fromList <$> arbitrary
     frequency [(5, pure v), (5, flip VS.drop v . getNonNegative <$> arbitrary)]
-
-qcByteArray :: Int -> Gen ByteArray
-qcByteArray n = byteArrayFromShortByteString <$> qcShortByteString n
 
 qcByteString :: Int -> Gen ByteString
 qcByteString n = uniformByteStringM (fromIntegral n) QC
