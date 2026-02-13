@@ -3,7 +3,6 @@ packages:
 
 -- Always build tests
 tests: True
-benchmarks: true
 test-show-details: streaming
 
 -- https://github.com/fpco/th-utilities/issues/19
@@ -14,23 +13,26 @@ if impl(ghc < 8.8)
   constraints:
     store == 0.7.18
 
-if impl(ghc >= 9.14)
-  allow-newer:
-    , indexed-traversable:base
-    , indexed-traversable:containers
-    , serialise:base
-    , these:base
-    , cborg:base
-    , criterion:aeson
-    , microstache:base
-    , microstache:containers
-    , binary:containers
-    , serialise:containers
-    , cborg:containers
-    , binary-orphans:base
-    , indexed-traversable-instances:base
-    , semialign:base
-    , semialign:containers
-    , aeson:*
-    , uuid-types:template-haskell
-    , serialise:time
+if impl(ghc < 9.14)
+  benchmarks: true
+
+-- if impl(ghc >= 9.14)
+--   allow-newer:
+--     , indexed-traversable:base
+--     , indexed-traversable:containers
+--     , serialise:base
+--     , these:base
+--     , cborg:base
+--     , criterion:aeson
+--     , microstache:base
+--     , microstache:containers
+--     , binary:containers
+--     , serialise:containers
+--     , cborg:containers
+--     , binary-orphans:base
+--     , indexed-traversable-instances:base
+--     , semialign:base
+--     , semialign:containers
+--     , aeson:*
+--     , uuid-types:template-haskell
+--     , serialise:time
